@@ -95,6 +95,30 @@ export class DockerRuntime {
     return id;
   }
 
+  /**
+   * Pull an image if the daemon doesn't have it yet. The Engine answers
+   * /images/create with a chunked progress stream that terminates when the
+   * pull is done, so the plain request() wait works (content-length absent,
+   * dechunk sees the 0-size terminator).
+   * @param {string} ref e.g. 'alpine:3.20' or 'python:3.12-slim'
+   */
+  async ensureImage(ref, timeoutMs = 180_000) {
+    const exists = await this.#api(`/images/${encodeURIComponent(ref)}/json`, 'GET')
+      .then(() => true)
+      .catch((err) => {
+        if (err instanceof SocketHttpError && err.status === 404) return false;
+        throw err;
+      });
+    if (exists) return;
+    // split tag: ':' counts only if the part after it has no '/' (registry:5000/x)
+    const ci = ref.lastIndexOf(':');
+    const hasTag = ci > -1 && !ref.slice(ci + 1).includes('/');
+    const name = hasTag ? ref.slice(0, ci) : ref;
+    const tag = hasTag ? ref.slice(ci + 1) : 'latest';
+    const q = `fromImage=${encodeURIComponent(name)}&tag=${encodeURIComponent(tag)}`;
+    await this.#api(`/images/create?${q}`, 'POST', { timeoutMs });
+  }
+
   /** @param {string} id */
   async start(id) {
     const cid = this.#cid(id);

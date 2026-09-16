@@ -11,7 +11,15 @@ const hasDocker = fs.existsSync(SOCKET);
 const t = hasDocker ? test : test.skip;
 
 let rt;
-before(() => { rt = new DockerRuntime({ socketPath: SOCKET }); });
+before(async () => {
+  rt = new DockerRuntime({ socketPath: SOCKET });
+  if (hasDocker) {
+    // CI runners ship a live daemon with NO pre-pulled images; create() 404s
+    // otherwise. ensureImage is a no-op when the daemon already has them.
+    await rt.ensureImage('alpine:3.20');
+    await rt.ensureImage('python:3.12-slim');
+  }
+});
 after(async () => {
   for (const id of [...rt.containers.keys()]) {
     try { await rt.stop(id, 500); await rt.rm(id); } catch { /* best effort */ }
