@@ -82,3 +82,29 @@ test('listModels parses data array', async () => {
   assert.deepStrictEqual(await p.listModels(), ['a', 'b']);
   globalThis.fetch = undefined;
 });
+
+test('opts.tools sent as native function schemas; native tool_calls normalized', async () => {
+  let captured;
+  mockFetch((u, b) => {
+    captured = b;
+    return { ok: true, status: 200, json: async () => ({
+      choices: [{ message: { content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fs_write', arguments: '{"path":"/p"}' } }] } }],
+      usage: null, id: 'x',
+    }) };
+  });
+  const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m'] });
+  const r = await p.chat([{ role: 'user', content: 'hi' }], { tools: [{ name: 'fs_write', description: 'd', parameters: { type: 'object' } }] });
+  assert.deepStrictEqual(captured.tools, [{ type: 'function', function: { name: 'fs_write', description: 'd', parameters: { type: 'object' } } }]);
+  assert.deepStrictEqual(r.tool_call, { name: 'fs_write', arguments: { path: '/p' } });
+  assert.strictEqual(r.content, null);
+  globalThis.fetch = undefined;
+});
+
+test('malformed arguments string survives as _raw', async () => {
+  mockFetch(() => ({ ok: true, status: 200, json: async () => ({
+    choices: [{ message: { tool_calls: [{ function: { name: 't', arguments: 'not-json' } }] } }] }) }));
+  const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m'] });
+  const r = await p.chat([{ role: 'user', content: 'hi' }]);
+  assert.deepStrictEqual(r.tool_call.arguments, { _raw: 'not-json' });
+  globalThis.fetch = undefined;
+});
