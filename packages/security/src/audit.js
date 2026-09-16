@@ -36,20 +36,20 @@ export class AuditTrail {
     if (!decision || typeof decision.allowed !== 'boolean') {
       throw new TypeError('decision must come from PermissionManager.check()');
     }
-    const ev = makeEvent(this.#runId, 'security.permission_checked', {
+    const ev = makeEvent('security.permission_checked', {
       agentId: decision.agentId,
       tool: decision.tool,
       allowed: decision.allowed,
       reason: decision.reason,
       args: redact(decision.args),
-    });
+    }, this.#runId);
     this.#bus.emit(ev);
     return ev;
   }
 
   /** Log a security-relevant occurrence that is not a decision (e.g. secret access). */
   logEvent(type, payload = {}) {
-    const ev = makeEvent(this.#runId, type, redact(payload));
+    const ev = makeEvent(type, redact(payload), this.#runId);
     this.#bus.emit(ev);
     return ev;
   }
