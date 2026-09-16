@@ -10,5 +10,14 @@
   "description": "nexus command: agent/sandbox/task/logs/events",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/sandbox-runtime": "*",
+    "@nexus/model-providers": "*",
+    "@nexus/agent-runtime": "*",
+    "@nexus/tool-system": "*",
+    "@nexus/security": "*",
+    "@nexus/event-system": "*",
+    "@nexus/shared": "*"
   }
 }
