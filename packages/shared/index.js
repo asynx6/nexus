@@ -1,3 +1,8 @@
-// @nexus/shared — schemas, ids, env loader, logger, constants — single source for all cross-package contracts
-// public facade: export ONLY contracts here (see docs/ARCHITECTURE.md rule 4)
+// @nexus/shared — cross-package contracts. This is the ONLY place shared
+// shapes live (ARCHITECTURE.md rule 1). Other packages import down, never up.
 export const NAME = '@nexus/shared';
+
+export { EVENTS, EVENT_SCHEMA_VERSION } from './events.js';
+export { newAgentId, newSandboxId, newTaskId, newEventId, newId } from './ids.js';
+export { loadEnv } from './env.js';
+export { makeLogger } from './log.js';
