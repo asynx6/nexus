@@ -1,102 +1,76 @@
-// P12 memory tests — round-trip + filter + recall-hydrate + idempotency.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { EventStore } from '@nexus/event-system';
-import { Memory, openMemory } from '../src/memory.js';
+import {
+  NAME, MemoryKind, isMemoryRecord, makeMemory,
+  MemoryManager, MemoryStorage, JsonlStorage,
+} from '../index.js';
 
-function tmp() {
-  const dir = mkdtempSync(join(tmpdir(), 'nexus-mem-'));
-  return { dir, path: join(dir, 'events.jsonl') };
-}
-
-function env(id, name, subject, ts, data = {}) {
-  return {
-    id, name, subject,
-    ts: typeof ts === 'string' ? ts : new Date(ts).toISOString(),
-    data,
-  };
-}
-
-test('index + recall round-trip', async () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  const mem = openMemory(store, dir);
-  const a = env('a1', 'task.started', 'task-A', 1_000);
-  const b = env('a2', 'tool.executed', 'task-A', 1_500);
-  const c = env('a3', 'task.ended', 'task-A', 2_000);
-  mem.index(a); mem.index(b); mem.index(c);
-  const rows = mem.recall({ subject: 'task-A', limit: 10 });
-  assert.strictEqual(rows.length, 3);
-  // newest first
-  assert.strictEqual(rows[0].id, 'a3');
-  assert.strictEqual(rows[2].id, 'a1');
-  mem.close(); await store.close(); rmSync(dir, { recursive: true, force: true });
+test('memory skeleton loads', () => {
+  assert.strictEqual(NAME, '@nexus/memory');
 });
 
-test('recall filtered by name + ts range', () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  const mem = openMemory(store, dir);
-  for (let i = 0; i < 10; i++) mem.index(env(`e${i}`, 'tool.executed', 's', 1_000 + i * 100));
-  mem.index(env('x', 'task.started', 's', 1_500));
-  assert.strictEqual(mem.count({ name: 'tool.executed' }), 10);
-  assert.strictEqual(mem.count({ name: 'task.started' }), 1);
-  const since = mem.recall({ name: 'tool.executed', sinceTs: 1_500 });
-  assert.ok(since.every((r) => r.ts >= 1_500));
-  mem.close(); store.close(); rmSync(dir, { recursive: true, force: true });
+test('makeMemory builds valid records and rejects bad input', () => {
+  const rec = makeMemory('long', 'fact:db', { engine: 'sqlite' });
+  assert.ok(isMemoryRecord(rec));
+  assert.strictEqual(rec.kind, 'long');
+  assert.strictEqual(rec.subject, null);
+  assert.throws(() => makeMemory('bogus', 'k', 1), TypeError);
+  assert.throws(() => makeMemory('long', '', 1), TypeError);
 });
 
-test('idempotent: re-index same id is a no-op', () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  const mem = openMemory(store, dir);
-  const e = env('dup', 'x', 's', 100);
-  assert.strictEqual(mem.index(e), true);
-  assert.strictEqual(mem.index(e), false);
-  assert.strictEqual(mem.count(), 1);
-  mem.close(); store.close(); rmSync(dir, { recursive: true, force: true });
+test('MemoryManager stores and recalls by kind/key via in-memory storage', async () => {
+  const mgr = new MemoryManager({ storage: new MemoryStorage() });
+  await mgr.init();
+  const events = [];
+  const mgr2 = new MemoryManager({
+    storage: mgr === null ? new MemoryStorage() : new MemoryStorage(),
+    emit: (e) => events.push(e),
+  });
+  await mgr2.init();
+
+  await mgr2.rememberShort('conversation:current', { turns: 3 });
+  await mgr2.rememberLong('fact:db', { engine: 'sqlite' });
+  await mgr2.rememberProject('info:stack', ['node', 'sqlite'], { subject: 'nexus' });
+
+  const all = await mgr2.recall();
+  assert.strictEqual(all.length, 3);
+  const longs = await mgr2.recall({ kind: MemoryKind.LONG });
+  assert.strictEqual(longs.length, 1);
+  assert.strictEqual(longs[0].key, 'fact:db');
+
+  const one = await mgr2.recallOne(MemoryKind.PROJECT, 'info:stack');
+  assert.deepStrictEqual(one.value, ['node', 'sqlite']);
+
+  const hit = events.find((e) => e.name === 'memory.created');
+  assert.ok(hit, 'memory.created emitted');
+  await mgr2.close();
 });
 
-test('indexBatch transaction', () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  const mem = openMemory(store, dir);
-  const batch = Array.from({ length: 50 }, (_, i) => env(`b${i}`, 'tool.executed', 'B', 1_000 + i));
-  const n = mem.indexBatch(batch);
-  assert.strictEqual(n, 50);
-  assert.strictEqual(mem.count({ subject: 'B' }), 50);
-  mem.close(); store.close(); rmSync(dir, { recursive: true, force: true });
-});
+test('JsonlStorage persists across instances and filters lists', async (t) => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'nexus-mem-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, 'memory.jsonl');
 
-test('rebuild walks EventStore and indexes everything', async () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  await store.append(env('r1', 'task.started', 'X', 100, { k: 1 }));
-  await store.append(env('r2', 'tool.executed', 'Y', 200, { k: 2 }));
-  await store.append(env('r3', 'task.ended', 'X', 300, { k: 3 }));
-  const mem = openMemory(store, dir);
-  const n = await mem.rebuild();
-  assert.strictEqual(n, 3);
-  assert.strictEqual(mem.count({ subject: 'X' }), 2);
-  assert.strictEqual(mem.count({ subject: 'Y' }), 1);
-  mem.close(); await store.close(); rmSync(dir, { recursive: true, force: true });
-});
+  const a = new MemoryManager({ storage: new JsonlStorage(path) });
+  await a.init();
+  const rec = await a.rememberLong('decision:auth', { mode: 'token' });
+  await a.rememberShort('conversation:current', { turns: 1 });
+  await a.close();
 
-test('recallHydrated returns full envelopes newest-first', async () => {
-  const { dir, path } = tmp();
-  const store = new EventStore(path);
-  const mem = openMemory(store, dir);
-  await store.append(env('h1', 'tool.executed', 'T', 100, { payload: 1 }));
-  await store.append(env('h2', 'tool.executed', 'T', 200, { payload: 2 }));
-  await mem.rebuild();
-  const out = [];
-  for await (const e of mem.recallHydrated({ subject: 'T' })) out.push(e);
-  assert.strictEqual(out.length, 2);
-  // recall() is DESC by ts; recallHydrated yields in that DESC order
-  assert.strictEqual(out[0].data.payload, 2);
-  assert.strictEqual(out[1].data.payload, 1);
-  mem.close(); await store.close(); rmSync(dir, { recursive: true, force: true });
+  const b = new MemoryManager({ storage: new JsonlStorage(path) });
+  await b.init();
+  assert.deepStrictEqual((await b.get(rec.id)).value, { mode: 'token' });
+  const longs = await b.recall({ kind: MemoryKind.LONG });
+  assert.strictEqual(longs.length, 1);
+
+  const upd = await b.update(rec.id, { mode: 'oauth' });
+  assert.deepStrictEqual(upd.value, { mode: 'oauth' });
+  assert.deepStrictEqual((await b.recallOne(MemoryKind.LONG, 'decision:auth')).value, { mode: 'oauth' });
+
+  await b.forget(rec.id);
+  assert.strictEqual(await b.get(rec.id), null);
+  await b.close();
 });
