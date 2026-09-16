@@ -9,11 +9,14 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P02 event-system | Leonars | ✅ 0f75ef8 (#5) |
 | P03 sandbox-runtime | Leo | ✅ c556831 (#4) |
 | P04 security | Leonars | ✅ 0ec2f8f (#6) + hotfix #7 |
-| P05 tool-system | Leo | 🔨 leo/P05-tool-system |
-| P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling |
-| P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) |
-| P08 control-plane api/cli | Leonars | 🔨 assigned |
-| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 harness merged, e2e run di box Leo |
+| P05 tool-system | Leo | ✅ merged (#10) + bridge loopTools (#12) |
+| P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling + SSE-tolerance |
+| P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) + ctx-forwarding (#14) |
+| P08 control-plane api/cli | Leonars | 🔨 #15, branch feat/p08-control-plane |
+| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 #16, harness merged (#13), PR #14 fix contract, re-run 3x di main |
+| P10 CLI operator `nexus` | Asynx6 (self) | 🔨 #17, belum mulai |
+| P11 web dashboard minimal | Kevin? (TBD) | 🆕 #18, waiting Kevin onboard |
+| P12 memory package | TBD | 🆕 #19 |
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
