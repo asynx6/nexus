@@ -1,3 +1,4 @@
-// @nexus/sandbox-runtime — SandboxRuntime interface + DockerRuntime (Engine API over unix socket), limits, network policy
-// public facade: export ONLY contracts here (see docs/ARCHITECTURE.md rule 4)
+// @nexus/sandbox-runtime — public facade: contracts only (ARCHITECTURE.md rule 4).
 export const NAME = '@nexus/sandbox-runtime';
+export { DockerRuntime, LABEL_MANAGED_BY, LABEL_MANAGED_VALUE } from './lib/docker.js';
+export { SocketHttpError, demuxExecStream } from './lib/sockhttp.js';
