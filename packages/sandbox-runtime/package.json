@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/sandbox-runtime",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "SandboxRuntime interface + DockerRuntime (Engine API over unix socket), limits, network policy",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/tool-system",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "ToolRegistry + filesystem/terminal tools wired through permissions + events",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

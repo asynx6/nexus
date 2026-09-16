@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "REST control plane (agents/sandboxes/tasks/events/logs/models) + bootstrap wiring",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

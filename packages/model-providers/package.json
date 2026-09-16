@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/model-providers",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "ModelProvider interface + openai-compatible & anthropic-compatible adapters",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

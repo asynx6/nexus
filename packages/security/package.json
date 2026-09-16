@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/security",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "PermissionManager (deny-by-default) + audit events + secret isolation",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
