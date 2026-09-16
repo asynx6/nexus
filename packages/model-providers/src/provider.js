@@ -35,7 +35,7 @@ export class ModelProvider {
    * @param {{ baseUrl: string, apiKey?: string, models?: string[], timeoutMs?: number, retries?: number }} opts
    *   models: ordered fallback list; first entry is primary.
    */
-  constructor({ baseUrl, apiKey = process.env.NEXUS_GATEWAY_KEY, models = ['bai/qwen3.8-flash'], timeoutMs = 60000, retries = 1 }) {
+  constructor({ baseUrl, apiKey = process.env.NEXUS_GATEWAY_KEY, models = ['hermes-agent'], timeoutMs = 60000, retries = 1 }) {
     if (typeof baseUrl !== 'string' || !baseUrl.startsWith('http')) throw new TypeError('baseUrl must be an http(s) URL');
     if (!apiKey) throw new Error('apiKey required (pass explicitly or set NEXUS_GATEWAY_KEY)');
     if (!Array.isArray(models) || models.length === 0) throw new TypeError('models must be a non-empty array');
