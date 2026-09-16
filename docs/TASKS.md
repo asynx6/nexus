@@ -1,5 +1,20 @@
 # NEXUS — Task Breakdown MVP v0.1
 
+Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ next
+
+| Task | Owner | Status |
+|---|---|---|
+| P00 monorepo scaffolding + CI | Asynx6 | ✅ d1e7d94 |
+| P01 shared contracts | Asynx6 | ✅ 3b109d7 (#3) |
+| P02 event-system | Leonars | ✅ 0f75ef8 (#5) |
+| P03 sandbox-runtime | Leo | ✅ c556831 (#4) |
+| P04 security | Leonars | ✅ 0ec2f8f (#6) |
+| P05 tool-system | Leo | 🔨 leo/P05-tool-system |
+| P06 model-provider | Asynx6 | ⏭️ |
+| P07 agent-loop | Asynx6 | ⏭️ after P05+P06 |
+| P08 control-plane api/cli | Leonars | 🔨 assigned |
+| P09 e2e fibonacci gate | Leo | ⏭️ |
+
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
 
