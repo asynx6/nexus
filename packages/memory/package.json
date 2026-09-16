@@ -7,7 +7,7 @@
   "exports": {
     ".": "./index.js"
   },
-  "description": "Long-term agent memory: events -> sqlite index + recall API",
+  "description": "Memory abstractions: MemoryManager (pluggable storage, k-v kinds) + EventRecall (sqlite index over EventStore)",
   "scripts": {
     "test": "node --test"
   },

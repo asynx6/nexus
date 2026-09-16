@@ -1,23 +1,18 @@
-// @nexus/memory — long-term agent memory built on EventStore.
-// Indexes events into sqlite (subject, name, ts) for fast filtered recall.
-// Zero external deps (Node ≥22, node:sqlite).
+// @nexus/memory — EventRecall: sqlite index over EventStore.
+// Read-mostly filter for past envelopes by subject/name/ts. Zero external deps.
+// Distinct from MemoryManager (which is k-v records with pluggable storage).
+// Both share the same package namespace.
 
 import { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
-/** Memory = thin sqlite index on top of EventStore.
- *  Use it when you need fast filtered recall of past events (subject + name + ts range).
- *  For raw event-by-event replay, use EventStore directly.
- */
-export class Memory {
+export class EventRecall {
   #store;
   #db;
   #insert;
-  #inTxn = false;
 
-  /** @param {{ store: EventStore, dbPath: string }} opts
-   *  dbPath must be supplied (we don't poke into EventStore's private fields). */
+  /** @param {{ store: EventStore, dbPath: string }} opts */
   constructor({ store, dbPath }) {
     if (!store) throw new TypeError('store required');
     if (!dbPath) throw new TypeError('dbPath required (sqlite index path)');
@@ -26,21 +21,21 @@ export class Memory {
     this.#db = new DatabaseSync(dbPath);
     this.#db.exec(
       'PRAGMA journal_mode = WAL;' +
-      'CREATE TABLE IF NOT EXISTS memory (' +
+      'CREATE TABLE IF NOT EXISTS recall_idx (' +
       '  id TEXT NOT NULL UNIQUE,' +
       '  subject TEXT,' +
       '  name TEXT NOT NULL,' +
       '  ts INTEGER NOT NULL' +
       ');' +
-      'CREATE INDEX IF NOT EXISTS idx_memory_subject_ts ON memory (subject, ts);' +
-      'CREATE INDEX IF NOT EXISTS idx_memory_name_ts ON memory (name, ts);'
+      'CREATE INDEX IF NOT EXISTS idx_recall_subject_ts ON recall_idx (subject, ts);' +
+      'CREATE INDEX IF NOT EXISTS idx_recall_name_ts ON recall_idx (name, ts);'
     );
     this.#insert = this.#db.prepare(
-      'INSERT OR IGNORE INTO memory (id, subject, name, ts) VALUES (?, ?, ?, ?)'
+      'INSERT OR IGNORE INTO recall_idx (id, subject, name, ts) VALUES (?, ?, ?, ?)'
     );
   }
 
-  /** Index one envelope. Returns true if newly inserted, false if already known. */
+  /** Index one envelope. Returns true if newly inserted. */
   index(env) {
     if (!env || typeof env.id !== 'string' || typeof env.name !== 'string') return false;
     const ts = typeof env.ts === 'number' ? env.ts : Date.parse(env.ts ?? '') ?? 0;
@@ -48,24 +43,21 @@ export class Memory {
     return r.changes > 0;
   }
 
-  /** Index a batch inside a single transaction. Returns count of new rows. */
+  /** Index a batch inside a single transaction. */
   indexBatch(envs) {
     this.#db.exec('BEGIN');
-    this.#inTxn = true;
     let n = 0;
     try {
       for (const e of envs) if (this.index(e)) n++;
       this.#db.exec('COMMIT');
-      this.#inTxn = false;
     } catch (err) {
       try { this.#db.exec('ROLLBACK'); } catch {}
-      this.#inTxn = false;
       throw err;
     }
     return n;
   }
 
-  /** Bulk-index everything from the underlying EventStore. Idempotent (UNIQUE on id). */
+  /** Bulk-index everything from EventStore. Idempotent. */
   async rebuild() {
     let n = 0;
     const batch = [];
@@ -77,8 +69,7 @@ export class Memory {
     return n;
   }
 
-  /** Recall indexed rows (newest first). Returns {id, subject, name, ts}.
-   *  Hydrate the full envelope via EventStore.replay if needed. */
+  /** Recall indexed rows (newest first). */
   recall({ subject, name, sinceTs, untilTs, limit = 50 } = {}) {
     const where = [];
     const args = [];
@@ -86,15 +77,14 @@ export class Memory {
     if (name !== undefined)    { where.push('name = ?');    args.push(name); }
     if (Number.isFinite(sinceTs))  { where.push('ts >= ?'); args.push(sinceTs); }
     if (Number.isFinite(untilTs))  { where.push('ts <= ?'); args.push(untilTs); }
-    const sql = 'SELECT id, subject, name, ts FROM memory' +
+    const sql = 'SELECT id, subject, name, ts FROM recall_idx' +
       (where.length ? ' WHERE ' + where.join(' AND ') : '') +
       ' ORDER BY ts DESC LIMIT ?';
     args.push(limit);
     return this.#db.prepare(sql).all(...args);
   }
 
-  /** Recall + hydrate full envelopes from EventStore in chronological order.
-   *  Convenience for prompt injection (always returns oldest-first). */
+  /** Recall + hydrate full envelopes from EventStore in same DESC order. */
   async *recallHydrated(opts = {}) {
     const rows = this.recall(opts);
     if (!rows.length) return;
@@ -106,24 +96,22 @@ export class Memory {
     }
   }
 
-  /** Count indexed rows. */
   count({ subject, name } = {}) {
     const where = [];
     const args = [];
     if (subject !== undefined) { where.push('subject = ?'); args.push(subject); }
     if (name !== undefined)    { where.push('name = ?');    args.push(name); }
-    const sql = 'SELECT COUNT(*) AS n FROM memory' + (where.length ? ' WHERE ' + where.join(' AND ') : '');
+    const sql = 'SELECT COUNT(*) AS n FROM recall_idx' + (where.length ? ' WHERE ' + where.join(' AND ') : '');
     return this.#db.prepare(sql).get(...args).n;
   }
 
   close() {
-    if (this.#inTxn) { try { this.#db.exec('ROLLBACK'); } catch {} }
     try { this.#db.close(); } catch {}
   }
 }
 
-/** Convenience: build a Memory backed by an EventStore at <dir>/events.jsonl,
- *  with the index file at <dir>/memory.idx. */
-export function openMemory(store, dir) {
-  return new Memory({ store, dbPath: join(dir, 'memory.idx') });
+/** Convenience: open EventRecall backed by an EventStore at <dir>/events.jsonl,
+ *  with the index file at <dir>/recall.idx. */
+export function openEventRecall(store, dir) {
+  return new EventRecall({ store, dbPath: join(dir, 'recall.idx') });
 }
