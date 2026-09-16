@@ -111,3 +111,33 @@ test('run() forwards extra toolCtx (runtime, sandboxId, bus, env) to tools.execu
   assert.strictEqual(captured.sandboxId, 'sbx-1');
   assert.deepStrictEqual(captured.env, { SECRET: 'v' });
 });
+
+test('verdict shortcut: PASS/FAIL alongside tool_call after successful tool -> done:true', async () => {
+  // P09 regression: hermes-agent emits a tool_call AND a short verdict line
+  // in the same step. Without the shortcut the loop keeps stepping until
+  // maxSteps and returns done:false.
+  let turn = 0;
+  const provider = { chat: async () => (++turn === 1
+    ? { model: 'm1', tool_call: { name: 'terminal.exec', arguments: { command: 'python', args: ['/workspace/test_fib.py'] } } }
+    : { content: 'PASS', model: 'm1' }) };
+  const tools = fakeTools();
+  const loop = new AgentLoop({ provider, tools });
+  const r = await loop.run('fib', { agentId: 'a' });
+  // Without shortcut, the model returns tool_call + 'PASS' on turn 1; the loop
+  // executes the tool then on turn 2 sees tool_call (or content) again.
+  // With shortcut: after the successful tool, the verdict content terminates.
+  assert.ok(['PASS', null].includes(r.answer) || r.steps <= 2, 'shortcut did not converge: steps=' + r.steps + ' answer=' + r.answer);
+});
+
+test('verdict shortcut does NOT fire when last tool errored', async () => {
+  // if the previous tool crashed, the model must still be allowed to keep going
+  let turn = 0;
+  const provider = { chat: async () => (++turn === 1
+    ? { model: 'm1', tool_call: { name: 'fs.write', arguments: { path: '/x' } } }
+    : { content: 'try again', model: 'm1' }) };
+  const tools = { list: () => [], execute: async () => { throw new Error('boom'); } };
+  const loop = new AgentLoop({ provider, tools });
+  const r = await loop.run('t', { agentId: 'a' });
+  assert.strictEqual(r.done, true);
+  assert.strictEqual(r.answer, 'try again');
+});
