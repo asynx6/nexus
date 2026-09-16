@@ -13,7 +13,7 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling |
 | P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) |
 | P08 control-plane api/cli | Leonars | 🔨 assigned |
-| P09 e2e fibonacci gate | Leo | ⏭️ |
+| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 harness merged, e2e run di box Leo |
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
