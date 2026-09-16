@@ -20,12 +20,12 @@ test('every decision emits a security.permission_checked event, stored in seq or
     audit.logDecision(pm.check('agent-1', 'fs.write', { path: '/etc/shadow' }));
     audit.logDecision(pm.check('agent-2', 'terminal.exec', { command: 'id' }));
 
-    const events = [...store.replay({ runId: 'run-1' })];
+    const events = [...store.replay({ subject: 'run-1' })];
     assert.strictEqual(events.length, 3);
     assert.deepStrictEqual(events.map((e) => e.seq), [0, 1, 2]);
-    assert.deepStrictEqual(events.map((e) => e.payload.allowed), [true, false, false]);
-    assert.match(events[1].payload.reason, /\/etc\/shadow/);
-    assert.strictEqual(events[2].payload.reason, 'no grants for agent (deny-by-default)');
+    assert.deepStrictEqual(events.map((e) => e.data.allowed), [true, false, false]);
+    assert.match(events[1].data.reason, /\/etc\/shadow/);
+    assert.strictEqual(events[2].data.reason, 'no grants for agent (deny-by-default)');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -57,6 +57,6 @@ test('audit args are redacted before hitting the bus', () => {
     args: { url: 'https://x', bearer_token: 'LEAK' },
   });
   assert.ok(seen);
-  assert.strictEqual(seen.payload.args.bearer_token, '[redacted]');
-  assert.strictEqual(seen.payload.args.url, 'https://x');
+  assert.strictEqual(seen.data.args.bearer_token, '[redacted]');
+  assert.strictEqual(seen.data.args.url, 'https://x');
 });
