@@ -1,0 +1,84 @@
+// @nexus/model-provider — OpenAI-compatible chat client for the NEXUS gateway.
+// Zero deps: global fetch + AbortSignal.timeout. No keys in logs, ever.
+// Secrets reach this module only via explicit `apiKey` option (caller pulls
+// from SecretStore / env — plan sec 22).
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export class ModelProvider {
+  #base; #key; #models; #timeoutMs; #retries;
+
+  /**
+   * @param {{ baseUrl: string, apiKey?: string, models?: string[], timeoutMs?: number, retries?: number }} opts
+   *   models: ordered fallback list; first entry is primary.
+   */
+  constructor({ baseUrl, apiKey = process.env.NEXUS_GATEWAY_KEY, models = ['bai/qwen3.8-flash'], timeoutMs = 60000, retries = 1 }) {
+    if (typeof baseUrl !== 'string' || !baseUrl.startsWith('http')) throw new TypeError('baseUrl must be an http(s) URL');
+    if (!apiKey) throw new Error('apiKey required (pass explicitly or set NEXUS_GATEWAY_KEY)');
+    if (!Array.isArray(models) || models.length === 0) throw new TypeError('models must be a non-empty array');
+    this.#base = baseUrl.replace(/\/+$/, '');
+    this.#key = apiKey;
+    this.#models = [...models];
+    this.#timeoutMs = timeoutMs;
+    this.#retries = retries;
+  }
+
+  get models() { return [...this.#models]; }
+
+  /**
+   * Chat completion with fallback across configured models.
+   * @param {Array<{role: string, content: string}>} messages
+   * @param {{ model?: string, maxTokens?: number, temperature?: number }} [opts]
+   * @returns {Promise<{ model: string, content: string, usage: object|null }>}
+   */
+  async chat(messages, opts = {}) {
+    if (!Array.isArray(messages) || messages.length === 0) throw new TypeError('messages must be a non-empty array');
+    const order = opts.model ? [opts.model, ...this.#models.filter((m) => m !== opts.model)] : this.#models;
+    let lastErr;
+    for (const model of order) {
+      for (let attempt = 0; attempt <= this.#retries; attempt++) {
+        try {
+          return await this.#oneCall(model, messages, opts);
+        } catch (e) {
+          lastErr = e;
+          // 4xx (except 429) = permanent, try next model immediately
+          if (e.status && e.status >= 400 && e.status < 500 && e.status !== 429) break;
+          if (attempt < this.#retries) await sleep(400 * (attempt + 1));
+        }
+      }
+    }
+    throw new Error('all models failed; last: ' + (lastErr?.message || 'unknown'));
+  }
+
+  async #oneCall(model, messages, opts) {
+    const body = { model, messages, max_tokens: opts.maxTokens ?? 1024 };
+    if (opts.temperature !== undefined) body.temperature = opts.temperature;
+    const r = await fetch(this.#base + '/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + this.#key, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.#timeoutMs),
+    });
+    if (!r.ok) {
+      const err = new Error('provider ' + r.status + ' on ' + model);
+      err.status = r.status;
+      throw err;
+    }
+    const j = await r.json();
+    // gateway may add non-standard fields (e.g. _manifest); choices must exist
+    const choice = Array.isArray(j.choices) && j.choices[0];
+    if (!choice) { const err = new Error('provider returned no choices for ' + model); err.status = 502; throw err; }
+    return { model, content: choice.message?.content ?? '', usage: j.usage ?? null, id: j.id ?? null };
+  }
+
+  /** List model ids from /models (gateway-provided). */
+  async listModels() {
+    const r = await fetch(this.#base + '/models', {
+      headers: { Authorization: 'Bearer ' + this.#key, Accept: 'application/json' },
+      signal: AbortSignal.timeout(this.#timeoutMs),
+    });
+    if (!r.ok) { const e = new Error('listModels ' + r.status); e.status = r.status; throw e; }
+    const j = await r.json();
+    return (j.data || j).map?.((m) => m.id ?? m) ?? [];
+  }
+}
