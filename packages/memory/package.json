@@ -7,8 +7,12 @@
   "exports": {
     ".": "./index.js"
   },
-  "description": "short/long/project memory abstraction, pluggable storage (v0.3)",
+  "description": "Long-term agent memory: events -> sqlite index + recall API",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/shared": "*",
+    "@nexus/event-system": "*"
   }
 }
