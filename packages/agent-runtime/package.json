@@ -12,6 +12,8 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@nexus/event-system": "*"
+    "@nexus/event-system": "*",
+    "@nexus/tool-system": "*",
+    "@nexus/security": "*"
   }
 }
