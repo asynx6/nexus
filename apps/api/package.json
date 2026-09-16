@@ -9,6 +9,6 @@
   },
   "description": "REST control plane (agents/sandboxes/tasks/events/logs/models) + bootstrap wiring",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

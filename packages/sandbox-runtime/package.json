@@ -9,6 +9,6 @@
   },
   "description": "SandboxRuntime interface + DockerRuntime (Engine API over unix socket), limits, network policy",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

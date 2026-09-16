@@ -9,6 +9,6 @@
   },
   "description": "schemas, ids, env loader, logger, constants — single source for all cross-package contracts",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

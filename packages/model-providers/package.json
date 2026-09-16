@@ -9,6 +9,6 @@
   },
   "description": "ModelProvider interface + openai-compatible & anthropic-compatible adapters",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

@@ -9,6 +9,6 @@
   },
   "description": "ToolRegistry + filesystem/terminal tools wired through permissions + events",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

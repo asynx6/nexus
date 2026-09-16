@@ -9,6 +9,6 @@
   },
   "description": "short/long/project memory abstraction, pluggable storage (v0.3)",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

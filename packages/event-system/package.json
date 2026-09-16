@@ -9,6 +9,6 @@
   },
   "description": "EventBus + append-only EventStore (JSONL + SQLite index), replay iterator",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

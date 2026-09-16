@@ -9,6 +9,6 @@
   },
   "description": "nexus command: agent/sandbox/task/logs/events",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }
