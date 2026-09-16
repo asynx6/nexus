@@ -10,5 +10,10 @@
   "description": "ToolRegistry + filesystem/terminal tools wired through permissions + events",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*",
+    "@nexus/security": "*",
+    "@nexus/shared": "*"
   }
 }
