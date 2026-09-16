@@ -10,5 +10,8 @@
   "description": "agent loop: observe → plan → tool → execute → memory-update → continue",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*"
   }
 }
