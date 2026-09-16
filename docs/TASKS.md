@@ -8,10 +8,10 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P01 shared contracts | Asynx6 | ✅ 3b109d7 (#3) |
 | P02 event-system | Leonars | ✅ 0f75ef8 (#5) |
 | P03 sandbox-runtime | Leo | ✅ c556831 (#4) |
-| P04 security | Leonars | ✅ 0ec2f8f (#6) |
+| P04 security | Leonars | ✅ 0ec2f8f (#6) + hotfix #7 |
 | P05 tool-system | Leo | 🔨 leo/P05-tool-system |
-| P06 model-provider | Asynx6 | ⏭️ |
-| P07 agent-loop | Asynx6 | ⏭️ after P05+P06 |
+| P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling |
+| P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) |
 | P08 control-plane api/cli | Leonars | 🔨 assigned |
 | P09 e2e fibonacci gate | Leo | ⏭️ |
 
