@@ -11,7 +11,8 @@ function mockFetch(handler) {
   };
   return calls;
 }
-const ok = (content) => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], usage: { total_tokens: 5 }, id: 'x' }) });
+const resp = (obj) => ({ ok: true, status: 200, json: async () => obj, text: async () => JSON.stringify(obj) });
+const ok = (content) => resp({ choices: [{ message: { content } }], usage: { total_tokens: 5 }, id: 'x' });
 const fail = (status) => ({ ok: false, status, json: async () => ({ error: 'boom' }), text: async () => 'boom' });
 
 test('rejects bad config', () => {
@@ -62,7 +63,7 @@ test('all models down -> single aggregate error, key never in message', async ()
 });
 
 test('choices missing -> treated as provider fault', async () => {
-  mockFetch(() => ({ ok: true, status: 200, json: async () => ({ _manifest: {} }) }));
+  mockFetch(() => resp({ _manifest: {} }));
   const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m1'], retries: 0 });
   await assert.rejects(() => p.chat([{ role: 'user', content: 'hi' }]), /no choices/);
   globalThis.fetch = undefined;
@@ -77,7 +78,7 @@ test('explicit opts.model overrides order', async () => {
 });
 
 test('listModels parses data array', async () => {
-  mockFetch(() => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'a' }, { id: 'b' }] }) }));
+  mockFetch(() => resp({ data: [{ id: 'a' }, { id: 'b' }] }));
   const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['a'] });
   assert.deepStrictEqual(await p.listModels(), ['a', 'b']);
   globalThis.fetch = undefined;
@@ -87,10 +88,10 @@ test('opts.tools sent as native function schemas; native tool_calls normalized',
   let captured;
   mockFetch((u, b) => {
     captured = b;
-    return { ok: true, status: 200, json: async () => ({
-      choices: [{ message: { content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fs_write', arguments: '{"path":"/p"}' } }] } }],
-      usage: null, id: 'x',
-    }) };
+    return resp({
+          choices: [{ message: { content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fs_write', arguments: '{"path":"/p"}' } }] } }],
+          usage: null, id: 'x',
+        });
   });
   const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m'] });
   const r = await p.chat([{ role: 'user', content: 'hi' }], { tools: [{ name: 'fs_write', description: 'd', parameters: { type: 'object' } }] });
@@ -101,10 +102,25 @@ test('opts.tools sent as native function schemas; native tool_calls normalized',
 });
 
 test('malformed arguments string survives as _raw', async () => {
-  mockFetch(() => ({ ok: true, status: 200, json: async () => ({
-    choices: [{ message: { tool_calls: [{ function: { name: 't', arguments: 'not-json' } }] } }] }) }));
+  mockFetch(() => resp({
+    choices: [{ message: { tool_calls: [{ function: { name: 't', arguments: 'not-json' } }] } }] }));
   const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m'] });
   const r = await p.chat([{ role: 'user', content: 'hi' }]);
   assert.deepStrictEqual(r.tool_call.arguments, { _raw: 'not-json' });
+  globalThis.fetch = undefined;
+});
+
+test('gateway replies SSE to non-stream call -> aggregated content', async () => {
+  const sse = [
+    'data: {"choices":[{"delta":{"content":"P"}}]}',
+    'data: {"choices":[{"delta":{"content":"ONG"}}],"model":"m"}',
+    'data: [DONE]',
+    '',
+  ].join('\n');
+  mockFetch(() => ({ ok: true, status: 200, text: async () => sse, json: async () => { throw new Error('not json'); } }));
+  const p = new ModelProvider({ baseUrl: 'https://api.test', apiKey: 'k', models: ['m'] });
+  const r = await p.chat([{ role: 'user', content: 'hi' }]);
+  assert.strictEqual(r.content, 'PONG');
+  assert.strictEqual(r.model, 'm');
   globalThis.fetch = undefined;
 });

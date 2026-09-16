@@ -5,6 +5,29 @@
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Parse an SSE chat-completions body into the final aggregated response. */
+function parseSseBody(text) {
+  let acc = { choices: [{ message: { content: '' } }] };
+  let sawChunk = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const chunk = JSON.parse(payload);
+      sawChunk = true;
+      const dc = chunk.choices?.[0]?.delta;
+      if (dc?.content) acc.choices[0].message.content += dc.content;
+      if (dc?.tool_calls?.[0]?.function?.name && !acc.choices[0].message.tool_calls) {
+        acc = chunk; // providers that stream tool_calls send them in full in one chunk
+      }
+      if (chunk.usage) acc.usage = chunk.usage;
+      if (chunk.model) acc.model = chunk.model;
+    } catch { /* skip malformed frames */ }
+  }
+  return sawChunk ? acc : null;
+}
+
 export class ModelProvider {
   #base; #key; #models; #timeoutMs; #retries;
 
@@ -68,7 +91,14 @@ export class ModelProvider {
       err.status = r.status;
       throw err;
     }
-    const j = await r.json();
+    const text = await r.text();
+    let j;
+    try {
+      j = JSON.parse(text);
+    } catch {
+      j = parseSseBody(text); // gateway sometimes replies SSE (data: {...}) to non-stream calls
+    }
+    if (!j) { const err = new Error('provider returned unparseable body for ' + model); err.status = 502; throw err; }
     // gateway may add non-standard fields (e.g. _manifest); choices must exist
     const choice = Array.isArray(j.choices) && j.choices[0];
     if (!choice) { const err = new Error('provider returned no choices for ' + model); err.status = 502; throw err; }

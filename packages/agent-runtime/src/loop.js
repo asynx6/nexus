@@ -40,7 +40,7 @@ export class AgentLoop {
    * @param {{ agentId: string, sandbox?: unknown, maxSteps?: number, system?: string }} ctx
    * @returns {Promise<{ done: boolean, answer: string|null, steps: number, history: Array }>}
    */
-  async run(task, { agentId, sandbox = null, maxSteps = 25, system }) {
+  async run(task, { agentId, sandbox = null, maxSteps = 16, system, ...toolCtx } = {}) {
     if (typeof task !== 'string' || !task.trim()) throw new TypeError('task required');
     if (!agentId) throw new TypeError('agentId required');
 
@@ -89,7 +89,9 @@ export class AgentLoop {
 
       let result;
       try {
-        result = await this.#tools.execute(name, args, { agentId, sandbox });
+        // forward toolCtx (runtime, sandboxId, bus, env) untouched — the
+        // ToolExecutor funnel owns permission/audit/event wiring (P07b).
+        result = await this.#tools.execute(name, args, { agentId, sandbox, ...toolCtx });
         messages.push(toolMsg(true, stringify(result?.output)));
       } catch (e) {
         messages.push(toolMsg(false, 'TOOL ERROR: ' + e.message));
