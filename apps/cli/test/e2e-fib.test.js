@@ -79,7 +79,8 @@ test('e2e fibonacci agent (docker + gateway required)', {
       'Then create /workspace/test_fib.py that asserts fibonacci(0)==0, fibonacci(1)==1, fibonacci(10)==55 from fib import fibonacci. ' +
       'Run it with terminal.exec command "python" args ["/workspace/test_fib.py"]. ' +
       'Finish by answering exactly: PASS (if exit code 0) or the failing output otherwise.',
-      { ...ctxBase, maxSteps: 12 },
+      { ...ctxBase, maxSteps: 16,
+        system: 'You are a coding agent inside an isolated sandbox. HARD RULES: every file path must be absolute and start with /workspace/ (writes elsewhere are denied and waste steps); create files ONLY with fs.write, run things ONLY with terminal.exec; do not explore, do not read /root, do not probe the environment. Plan in at most: write fib.py, write test_fib.py, run test, answer.' },
     );
     assert.strictEqual(result.done, true, 'agent did not converge, last message: ' + JSON.stringify(result.history.at(-1))?.slice(0, 400));
 

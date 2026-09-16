@@ -98,3 +98,16 @@ test('emitter failure never kills the run', async () => {
   const r = await loop.run('t', { agentId: 'a' });
   assert.strictEqual(r.answer, 'x');
 });
+
+test('run() forwards extra toolCtx (runtime, sandboxId, bus, env) to tools.execute', async () => {
+  let captured;
+  const tools = { list: () => [], execute: async (n, a, ctx) => { captured = ctx; return { ok: true, output: 'x' }; } };
+  let turn = 0;
+  const provider = { chat: async () => (++turn === 1 ? { model: 'm', tool_call: { name: 'fs.write', arguments: {} } } : { content: 'ok', model: 'm' }) };
+  const runtime = { exec: true };
+  const loop = new AgentLoop({ provider, tools });
+  await loop.run('t', { agentId: 'a', runtime, sandboxId: 'sbx-1', env: { SECRET: 'v' } });
+  assert.strictEqual(captured.runtime, runtime);
+  assert.strictEqual(captured.sandboxId, 'sbx-1');
+  assert.deepStrictEqual(captured.env, { SECRET: 'v' });
+});
