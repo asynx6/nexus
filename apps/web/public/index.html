@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NEXUS dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0e1116; color: #e6edf3;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: #161b22; border-bottom: 1px solid #30363d; }
+  header h1 { margin: 0; font-size: 14px; letter-spacing: .04em; color: #58a6ff; }
+  header .meta { color: #8b949e; }
+  header input { background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+    padding: 4px 8px; border-radius: 4px; font: inherit; width: 220px; }
+  header button { background: #238636; color: white; border: 0; padding: 5px 10px;
+    border-radius: 4px; font: inherit; cursor: pointer; }
+  header button:hover { background: #2ea043; }
+  main { display: grid; grid-template-columns: 320px 1fr; height: calc(100% - 50px); }
+  aside { border-right: 1px solid #30363d; overflow: auto; background: #0d1117; }
+  aside .item { padding: 8px 12px; border-bottom: 1px solid #21262d; cursor: pointer; }
+  aside .item:hover { background: #161b22; }
+  aside .item.active { background: #1f6feb33; border-left: 2px solid #58a6ff; }
+  aside .item .subj { color: #58a6ff; font-weight: 600; }
+  aside .item .meta { color: #8b949e; font-size: 11px; margin-top: 2px; }
+  section { overflow: auto; padding: 12px 16px; }
+  .empty { color: #8b949e; padding: 24px; text-align: center; }
+  .timeline { border-left: 2px solid #30363d; padding-left: 16px; }
+  .ev { padding: 4px 0; display: grid; grid-template-columns: 100px 200px 1fr 100px; gap: 8px; cursor: pointer; }
+  .ev:hover { background: #161b22; }
+  .ev .ts { color: #8b949e; font-size: 11px; }
+  .ev .name { color: #d2a8ff; }
+  .ev .data { color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev .seq { color: #8b949e; text-align: right; font-size: 11px; }
+  details.payload { background: #161b22; border: 1px solid #30363d; border-radius: 4px;
+    padding: 8px 12px; margin: 8px 0; }
+  details.payload pre { margin: 6px 0 0 0; white-space: pre-wrap; word-break: break-all;
+    color: #c9d1d9; font-size: 12px; max-height: 280px; overflow: auto; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+  .pill.ok { background: #238636; color: white; }
+  .pill.bad { background: #da3633; color: white; }
+  .pill.warn { background: #9e6a03; color: white; }
+  .pill.muted { background: #30363d; color: #e6edf3; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .row input { background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+    padding: 4px 8px; border-radius: 4px; font: inherit; }
+  .err { color: #f85149; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NEXUS</h1>
+  <span class="meta" id="health">connecting…</span>
+  <input id="token" placeholder="bearer token (stored in sessionStorage)" type="password" />
+  <button id="saveToken">save</button>
+  <span id="authState" class="pill muted">no token</span>
+</header>
+<main>
+  <aside id="runs">
+    <div class="empty">Loading runs…</div>
+  </aside>
+  <section id="detail">
+    <div class="empty">Select a run on the left.</div>
+  </section>
+</main>
+
+<script>
+// P11 dashboard — vanilla. All endpoints are same-origin /api/* + /healthz.
+// Token is stored only in sessionStorage (never persisted), matches SecretStore.
+const $ = (id) => document.getElementById(id);
+let currentSubject = null;
+let events = [];
+let pollTimer = null;
+
+const token = () => sessionStorage.getItem('nexus_web_token') || '';
+const setAuthState = (label, kind) => {
+  const el = $('authState');
+  el.textContent = label;
+  el.className = 'pill ' + (kind || 'muted');
+};
+
+$('saveToken').onclick = () => {
+  sessionStorage.setItem('nexus_web_token', $('token').value.trim());
+  setAuthState('token saved', 'ok');
+  refresh();
+};
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'accept': 'application/json' }, opts.headers || {});
+  if (token()) headers['authorization'] = 'Bearer ' + token();
+  const r = await fetch(path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    setAuthState('unauthorized', 'bad');
+    throw new Error('401 unauthorized');
+  }
+  if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+  return r.json();
+}
+
+async function refresh() {
+  try {
+    const h = await fetch('/healthz').then((r) => r.json());
+    $('health').textContent = `${h.name} · ${h.events} events · ok`;
+    $('health').classList.remove('err');
+  } catch (e) {
+    $('health').textContent = 'health: ' + e.message;
+    $('health').classList.add('err');
+    return;
+  }
+  if (!token()) { setAuthState('no token', 'muted'); return; }
+  try {
+    const data = await api('/api/runs?limit=50');
+    renderRuns(data.runs || []);
+    setAuthState('authenticated', 'ok');
+  } catch (e) {
+    $('runs').innerHTML = `<div class="empty err">${e.message}</div>`;
+  }
+}
+
+function renderRuns(runs) {
+  const root = $('runs');
+  if (!runs.length) { root.innerHTML = '<div class="empty">No runs yet.</div>'; return; }
+  root.innerHTML = runs.map((r) => `
+    <div class="item ${r.subject === currentSubject ? 'active' : ''}" data-subject="${esc(r.subject)}">
+      <div class="subj">${esc(r.subject)}</div>
+      <div class="meta">${r.count} ev · last ${esc(r.lastName)} · ${shortTs(r.lastTs)}</div>
+    </div>
+  `).join('');
+  root.querySelectorAll('.item').forEach((el) => {
+    el.onclick = () => selectRun(el.dataset.subject);
+  });
+}
+
+async function selectRun(subject) {
+  currentSubject = subject;
+  document.querySelectorAll('#runs .item').forEach((el) =>
+    el.classList.toggle('active', el.dataset.subject === subject));
+  await loadEvents();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(loadEvents, 3000);
+}
+
+async function loadEvents() {
+  if (!currentSubject) return;
+  try {
+    const data = await api(`/api/runs/${encodeURIComponent(currentSubject)}/events?limit=500`);
+    events = data.events || [];
+    renderDetail();
+  } catch (e) {
+    $('detail').innerHTML = `<div class="empty err">${e.message}</div>`;
+  }
+}
+
+function renderDetail() {
+  const root = $('detail');
+  if (!currentSubject) { root.innerHTML = '<div class="empty">Select a run on the left.</div>'; return; }
+  root.innerHTML = `
+    <div class="row">
+      <strong style="color:#58a6ff">${esc(currentSubject)}</strong>
+      <span class="pill muted">${events.length} events</span>
+      <span class="pill muted">earliest ${shortTs(events[0]?.ts)}</span>
+      <span class="pill muted">latest ${shortTs(events.at(-1)?.ts)}</span>
+    </div>
+    <div class="timeline">
+      ${events.map((e, i) => `
+        <details class="payload">
+          <summary>
+            <span style="color:#8b949e">${shortTs(e.ts)}</span>
+            <span class="name">${esc(e.name)}</span>
+            <span style="color:#8b949e">#${e.seq ?? i}</span>
+          </summary>
+          <pre>${esc(JSON.stringify(e, null, 2))}</pre>
+        </details>
+      `).join('')}
+    </div>
+  `;
+}
+
+function shortTs(iso) {
+  if (!iso) return '—';
+  return iso.slice(11, 19);
+}
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+window.addEventListener('load', () => {
+  $('token').value = token();
+  if (token()) setAuthState('token loaded', 'ok');
+  refresh();
+  setInterval(refresh, 5000);
+});
+</script>
+</body>
+</html>
