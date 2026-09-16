@@ -8,9 +8,10 @@ import { PermissionManager, AuditTrail, redact } from '../index.js';
 
 test('every decision emits a security.permission_checked event, stored in seq order', () => {
   const dir = mkdtempSync(join(tmpdir(), 'nexus-audit-'));
+  let store;
   try {
     const bus = new EventBus();
-    const store = new EventStore(join(dir, 'run.jsonl'));
+    store = new EventStore(join(dir, 'run.jsonl'));
     bus.on('*', (e) => store.append(e));
 
     const pm = new PermissionManager();
@@ -27,6 +28,7 @@ test('every decision emits a security.permission_checked event, stored in seq or
     assert.match(events[1].data.reason, /\/etc\/shadow/);
     assert.strictEqual(events[2].data.reason, 'no grants for agent (deny-by-default)');
   } finally {
+    store.close(); // Windows: sqlite keeps .idx locked until closed
     rmSync(dir, { recursive: true, force: true });
   }
 });

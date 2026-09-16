@@ -61,6 +61,7 @@ test('rebuildIndex reproduces identical replay from JSONL alone', () => {
   try {
     for (let i = 0; i < 20; i++) store.append(makeEvent(EVENTS.FILE_MODIFIED, { i }, 'file-r'));
     const before = [...store.replay()].map((e) => e.id);
+    store.close(); // Windows: sqlite keeps .idx locked until closed
     rmSync(path + '.idx', { force: true });
     rmSync(path + '.idx-wal', { force: true });
     rmSync(path + '.idx-shm', { force: true });
