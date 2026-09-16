@@ -62,8 +62,10 @@ t('copyIn + run copied script', async () => {
 t('memory limit is enforced: OOM kill on big allocation', async () => {
   const id = await rt.create({ memoryMb: 128 });
   await rt.start(id);
-  // ~1GB bytearray: must die under a 128MiB cgroup limit
-  const r = await rt.exec(id, ['python', '-c', 'x=bytearray(1024*1024*1000); print(len(x))'], { timeoutMs: 20_000 });
+  // memset loop (not just bytearray(N)): touching every page forces RSS, so
+  // the cgroup must actually kill it. A bare bytearray(1GB) can survive on
+  // systems with swap or overcommit (seen on ubuntu runners).
+  const r = await rt.exec(id, ['python', '-c', 'x=bytearray(1024*1024*1000)\nfor i in range(0,len(x),4096): x[i]=1\nprint(len(x))'], { timeoutMs: 30_000 });
   assert.ok(r.exitCode !== 0, `expected nonzero exit, got ${r.exitCode} out=${r.stdout}`);
   assert.ok(!r.stdout.includes('1048576000'));
   await rt.stop(id);
