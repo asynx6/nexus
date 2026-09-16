@@ -46,3 +46,10 @@ test('runNexusCli: healthz reports base + models without gateway call', async ()
   assert.match(buf, /base: https:\/\/api.test\/v1/);
   assert.match(buf, /models: m1,m2/);
 });
+
+test('parseArgs: --follow flag', () => {
+  const r = parseArgs(['replay', '--follow', '--interval=500']);
+  assert.strictEqual(r.cmd, 'replay');
+  assert.strictEqual(r.flags.follow, true);
+  assert.strictEqual(r.flags.interval, '500');
+});

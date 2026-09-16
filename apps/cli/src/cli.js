@@ -8,7 +8,8 @@ import { newAgentId, newTaskId } from '@nexus/shared';
 const HELP = `nexus — AI Agent Operating Environment
 Usage:
   nexus run "<task>" [--max-steps=N] [--model=NAME]      run agent on a task
-  nexus replay [--subject=ID] [--since=SEQ]              replay events from store
+  nexus replay [--subject=ID] [--since=SEQ] [--follow]   replay events from store
+                                                          --follow tails live events (poll default 1s)
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus --help                                           show this message
@@ -79,9 +80,17 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     const store = await ctx.store.open();
     const subject = args.flags.subject;
     const since = readFlags(args.flags, 'since');
+    const follow = !!args.flags.follow;
+    const interval = Number(args.flags.interval ?? 1000);
     try {
-      for await (const env of store.replay({ subject, since })) {
-        stdout(JSON.stringify(env));
+      let cursor = since;
+      for (;;) {
+        for await (const env of store.replay({ subject, since: cursor })) {
+          stdout(JSON.stringify(env));
+          cursor = (env.seq ?? 0) + 1;
+        }
+        if (!follow) break;
+        await new Promise((r) => setTimeout(r, interval));
       }
       return 0;
     } finally { await store.close(); }
