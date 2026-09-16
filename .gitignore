@@ -2,4 +2,6 @@ node_modules/
 *.log
 .nexus-data/
 sandbox-work/
+.env
+.env-gateway
 .DS_Store
