@@ -37,7 +37,7 @@ test('tool round-trip: model calls tool, then answers with tool output in histor
     if (turn === 1) return { model: 'm1', tool_call: { name: 'fs.write', arguments: { path: '/workspace/fib.py', content: 'print(1)' } } };
     // second turn must see the tool result appended
     const toolMsg = msgs.find((m) => m.role === 'tool');
-    return { content: 'created: ' + toolMsg.output, model: 'm1' };
+    return { content: 'created: ' + toolMsg.content, model: 'm1' };
   } };
   const loop = new AgentLoop({ provider, tools: fakeTools(execLog) });
   const r = await loop.run('create fib', { agentId: 'agent-1' });
@@ -57,7 +57,7 @@ test('permission denial feeds reason back to model, tool never executes', async 
   const loop = new AgentLoop({ provider, tools: fakeTools(execLog), permissions: perms });
   const r = await loop.run('rm shadow', { agentId: 'agent-1' });
   assert.strictEqual(execLog.length, 0);
-  assert.match(r.history.find((m) => m.role === 'tool').output, /PERMISSION DENIED/);
+  assert.match(r.history.find((m) => m.role === 'tool').content, /PERMISSION DENIED/);
   assert.strictEqual(r.answer, 'sorry, blocked');
 });
 
@@ -76,8 +76,8 @@ test('audit receives every check decision', async () => {
 test('tool crash -> error string fed back, loop recovers', async () => {
   let turn = 0;
   const provider = { chat: async (msgs) => (++turn === 1
-    ? { model: 'm', tool_call: { name: 'fs.write', arguments: { path: '/p' } } }
-    : { content: 'saw: ' + msgs.find((m) => m.role === 'tool').output, model: 'm' }) };
+    ? { model: 'm', tool_call: { name: 'fs.write', arguments: { path: '/x' } } }
+    : { content: 'saw: ' + msgs.find((m) => m.role === 'tool').content, model: 'm' }) };
   const tools = { list: () => [], execute: async () => { throw new Error('disk on fire'); } };
   const loop = new AgentLoop({ provider, tools });
   const r = await loop.run('t', { agentId: 'a' });

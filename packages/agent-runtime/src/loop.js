@@ -67,15 +67,21 @@ export class AgentLoop {
       }
 
       const { name, arguments: args = {} } = call;
-      messages.push({ role: 'assistant', content: content ?? '', tool_call: call });
+      messages.push({
+        role: 'assistant',
+        content: content ?? '',
+        tool_calls: [{ id: call.id || 'call_' + steps, type: 'function', function: { name, arguments: JSON.stringify(args) } }],
+      });
       this.#emit(EVENTS.AGENT_TOOL_CALLED, { tool: name, args }, agentId);
+
+      const toolMsg = (ok, out) => ({ role: 'tool', tool_call_id: call.id || 'call_' + steps, content: out, ok });
 
       // permission gate (deny-by-default when permissions provided)
       if (this.#permissions) {
         const decision = this.#permissions.check(agentId, name, args);
         this.#audit?.logDecision?.(decision);
         if (!decision.allowed) {
-          messages.push({ role: 'tool', tool: name, ok: false, output: 'PERMISSION DENIED: ' + decision.reason });
+          messages.push(toolMsg(false, 'PERMISSION DENIED: ' + decision.reason));
           this.#emit('agent.tool_denied', { tool: name, reason: decision.reason }, agentId);
           continue;
         }
@@ -84,9 +90,9 @@ export class AgentLoop {
       let result;
       try {
         result = await this.#tools.execute(name, args, { agentId, sandbox });
-        messages.push({ role: 'tool', tool: name, ok: true, output: stringify(result?.output) });
+        messages.push(toolMsg(true, stringify(result?.output)));
       } catch (e) {
-        messages.push({ role: 'tool', tool: name, ok: false, output: 'TOOL ERROR: ' + e.message });
+        messages.push(toolMsg(false, 'TOOL ERROR: ' + e.message));
       }
       this.#emit('agent.tool_result', { tool: name, ok: !!result?.ok }, agentId);
     }

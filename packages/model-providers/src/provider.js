@@ -53,6 +53,10 @@ export class ModelProvider {
   async #oneCall(model, messages, opts) {
     const body = { model, messages, max_tokens: opts.maxTokens ?? 1024 };
     if (opts.temperature !== undefined) body.temperature = opts.temperature;
+    // native OpenAI function calling: caller passes plain [{name,description,parameters}]
+    if (Array.isArray(opts.tools) && opts.tools.length > 0) {
+      body.tools = opts.tools.map((t) => ({ type: 'function', function: t }));
+    }
     const r = await fetch(this.#base + '/chat/completions', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + this.#key, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -68,7 +72,15 @@ export class ModelProvider {
     // gateway may add non-standard fields (e.g. _manifest); choices must exist
     const choice = Array.isArray(j.choices) && j.choices[0];
     if (!choice) { const err = new Error('provider returned no choices for ' + model); err.status = 502; throw err; }
-    return { model, content: choice.message?.content ?? '', usage: j.usage ?? null, id: j.id ?? null };
+    const msg = choice.message ?? {};
+    const native = Array.isArray(msg.tool_calls) ? msg.tool_calls[0] : null;
+    let tool_call = null;
+    if (native?.function?.name) {
+      let args = native.function.arguments ?? '{}';
+      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = { _raw: args }; } }
+      tool_call = { name: native.function.name, arguments: args };
+    }
+    return { model, content: msg.content ?? null, tool_call, usage: j.usage ?? null, id: j.id ?? null };
   }
 
   /** List model ids from /models (gateway-provided). */
