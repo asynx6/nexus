@@ -1,0 +1,17 @@
+{
+  "name": "@nexus/dashboard",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "minimal web dashboard (P11): overview over agents/sandboxes/tasks/events from the event stream",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*"
+  }
+}
