@@ -10,5 +10,8 @@
   "description": "PermissionManager (deny-by-default) + audit events + secret isolation",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*"
   }
 }
