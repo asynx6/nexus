@@ -17,8 +17,8 @@ jobs:
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-      - name: Install workspaces root
-        run: npm ci --workspaces=false
+      - name: Install root dependencies
+        run: npm ci
       - name: Publish to npm
         run: npm publish --access public
         env:
