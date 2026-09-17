@@ -2,6 +2,7 @@
 // Zero deps. Returns exit code.
 
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
+import { runDoctor } from './doctor.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 
@@ -12,6 +13,7 @@ Usage:
                                                           --follow tails live events (poll default 1s)
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
+  nexus doctor                                           full environment health check (Node, env, gateway, sqlite, docker)
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -73,6 +75,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       stdout(`models: ${env.NEXUS_GATEWAY_MODELS ?? 'hermes-agent'}`);
       return 0;
     } catch (e) { stderr('healthz: ' + e.message); return 1; }
+  }
+
+  if (args.cmd === 'doctor') {
+    return await runDoctor({ env, stdout, stderr });
   }
 
   if (args.cmd === 'replay') {
