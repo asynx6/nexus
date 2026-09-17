@@ -12,11 +12,13 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P05 tool-system | Leo | ✅ merged (#10) + bridge loopTools (#12) |
 | P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling + SSE-tolerance |
 | P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) + ctx-forwarding (#14) |
-| P08 control-plane api/cli | Leonars | 🔨 #15, branch feat/p08-control-plane |
-| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 #16, harness merged (#13), PR #14 fix contract, re-run 3x di main |
-| P10 CLI operator `nexus` | Asynx6 (self) | 🔨 #17, belum mulai |
-| P11 web dashboard minimal | Kevin? (TBD) | 🆕 #18, waiting Kevin onboard |
-| P12 memory package | TBD | 🆕 #19 |
+| P08 control-plane api/cli | Leonars | 🔨 #15, PR feat/p08-control-plane, hold di V |
+| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 #16, harness merged (#13), PR #14 fix contract, debug 401 gw tangani |
+| P10 CLI operator `nexus` | Asynx6 (self) | ✅ 78879c4 (run/replay/tasks/healthz), +79708f6 (--follow) |
+| P11 web dashboard minimal | TBD | 🆕 #18, waiting |
+| P12 memory package | Kevin+Vinz | ✅ b63adb5 (#20) — Kevin's MemoryManager (pluggable) + VinZ's EventRecall (sqlite) |
+
+Cross-test: 108 tests, 91 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#15(hold),#20. HEAD: b63adb5.
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
