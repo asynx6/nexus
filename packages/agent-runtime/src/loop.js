@@ -66,6 +66,24 @@ export class AgentLoop {
         return { done: true, answer: content, steps: steps + 1, history: messages };
       }
 
+      // After a successful tool, if the assistant content is short and contains
+      // a verdict marker (PASS/FAIL), treat it as the final answer even though
+      // a tool_call was also emitted in this step. hermes-agent returns both
+      // content + tool_call in one turn for the "run the test, answer PASS"
+      // phase; without this shortcut the loop keeps re-asking the model until
+      // maxSteps (P09 e2e regression).
+      const verdictRe = /\b(PASS|FAIL|FAILED|ERROR)\b/i;
+      const trimmedContent = typeof content === 'string' ? content.trim() : '';
+      const lastIdx = messages.length - 1;
+      const lastMsg = lastIdx >= 0 ? messages[lastIdx] : null;
+      const lastToolOk = lastMsg && lastMsg.role === 'tool' && lastMsg.ok !== false
+        && !/TOOL ERROR|PERMISSION DENIED/i.test(String(lastMsg.content || ''));
+      if (lastToolOk && verdictRe.test(trimmedContent) && trimmedContent.length <= 200) {
+        messages.push({ role: 'assistant', content: trimmedContent });
+        this.#emit(EVENTS.TASK_COMPLETED, { steps: steps + 1, answerLength: trimmedContent.length, verdict: true }, agentId);
+        return { done: true, answer: trimmedContent, steps: steps + 1, history: messages };
+      }
+
       const { name, arguments: args = {} } = call;
       messages.push({
         role: 'assistant',
