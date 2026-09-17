@@ -16,7 +16,14 @@ RUN ln -s /opt/nexus/apps/cli/bin.mjs /usr/local/bin/nexus \
     && mkdir /workspace && chown node:node /workspace
 USER node
 WORKDIR /workspace
+# HEALTHCHECK probes binary load + package.json parse via the same fast path
+# bin.mjs uses for `nexus --version`. `nexus --help` would dispatch through the
+# CLI parser (heavier) and is also the default CMD, so reusing it for the
+# healthcheck risks masking runtime regressions when the parser is broken.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD nexus --help > /dev/null || exit 1
+    CMD nexus --version > /dev/null || exit 1
 ENTRYPOINT ["nexus"]
+# Default CMD prints help so `docker run nexus-test` exits 0 with usage info.
+# For a long-running container (smoke test, dev shell), override CMD, e.g.:
+#   docker run --rm -d nexus-test sleep infinity
 CMD ["--help"]
