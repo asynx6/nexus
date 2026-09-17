@@ -58,9 +58,9 @@ test('e2e fibonacci agent (docker + gateway required)', {
     const reg = new ToolRegistry();
     for (const t of [...fsTools(), ...terminalTools()]) reg.register(t);
     const pm = new PermissionManager();
-    pm.grant(agentId, 'fs.read', { paths: ['/workspace'] });
-    pm.grant(agentId, 'fs.write', { paths: ['/workspace'] });
-    pm.grant(agentId, 'fs.edit', { paths: ['/workspace'] });
+    pm.grant(agentId, 'fs.read', { paths: ['/workspace/**'] });
+    pm.grant(agentId, 'fs.write', { paths: ['/workspace/**'] });
+    pm.grant(agentId, 'fs.edit', { paths: ['/workspace/**'] });
     pm.grant(agentId, 'terminal.exec', {});
     const audit = new AuditTrail({ bus, runId: agentId });
     const executor = new ToolExecutor({ registry: reg, permissions: pm, audit });
