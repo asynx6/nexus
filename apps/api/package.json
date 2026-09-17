@@ -10,5 +10,14 @@
   "description": "REST control plane (agents/sandboxes/tasks/events/logs/models) + bootstrap wiring",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/sandbox-runtime": "*",
+    "@nexus/model-providers": "*",
+    "@nexus/agent-runtime": "*",
+    "@nexus/tool-system": "*",
+    "@nexus/security": "*",
+    "@nexus/event-system": "*",
+    "@nexus/shared": "*"
   }
 }
