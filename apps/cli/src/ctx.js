@@ -30,10 +30,12 @@ export function buildRunCtx(opts = {}) {
   for (const t of fsTools({ allowedPaths: ['/workspace', process.cwd()] })) registry.register(t);
   for (const t of terminalTools({ timeoutMs: 60_000 })) registry.register(t);
 
+  const allowedPaths = ['/workspace', process.cwd()];
+  const allowedPathPatterns = allowedPaths.flatMap((p) => [p, `${p}/**`]);
   const permissions = new PermissionManager();
-  permissions.grant('cli', 'fs.read', { paths: ['/workspace', process.cwd()] });
-  permissions.grant('cli', 'fs.write', { paths: ['/workspace', process.cwd()] });
-  permissions.grant('cli', 'fs.edit', { paths: ['/workspace', process.cwd()] });
+  permissions.grant('cli', 'fs.read', { paths: allowedPathPatterns });
+  permissions.grant('cli', 'fs.write', { paths: allowedPathPatterns });
+  permissions.grant('cli', 'fs.edit', { paths: allowedPathPatterns });
   permissions.grant('cli', 'terminal.exec', {});
 
   const executor = new ToolExecutor({ registry, permissions, audit });
