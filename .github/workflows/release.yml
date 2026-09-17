@@ -1,0 +1,28 @@
+# Auto-publish @asynx6/nexus-cli to npm on tag v*.
+# Required secret: NPM_TOKEN (Bypass-2FA granular token, scope: asynx6, package: nexus-cli).
+name: Publish @asynx6/nexus-cli
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install workspaces root
+        run: npm ci --workspaces=false
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Tag success
+        if: success()
+        run: echo "Published @asynx6/nexus-cli@${{ github.ref_name }}"
