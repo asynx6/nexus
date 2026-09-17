@@ -1,5 +1,4 @@
 # Auto-publish @asynx6/nexus-cli to npm on tag v*.
-# Required secret: NPM_TOKEN (Bypass-2FA granular token, scope: asynx6, package: nexus-cli).
 name: Publish @asynx6/nexus-cli
 on:
   push:
@@ -15,19 +14,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          clean: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
-      - name: Generate lockfile (workaround CI cache)
-        run: |
-          npm install --workspaces=false
-          npm install --workspaces
-          npm ci --lockfile=package-lock.json
+      - name: Generate lockfile
+        run: npm ci --force
       - name: Publish to npm
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Tag success
+      - name: Success tag
         if: success()
-        run: echo "Published @asynx6/nexus-cli@${{ github.ref_name }}"
+        run: echo "Published ${{ github.ref_name }}"
