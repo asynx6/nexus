@@ -1,0 +1,19 @@
+{
+  "name": "@nexus/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "Web dashboard (P11): 1-file HTML + tiny HTTP server. Live event tail + run timeline + payload view.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*",
+    "@nexus/security": "*"
+  }
+}
