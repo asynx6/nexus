@@ -12,13 +12,14 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P05 tool-system | Leo | ✅ merged (#10) + bridge loopTools (#12) |
 | P06 model-providers | Asynx6 | ✅ d5deb5a (#8) native function-calling + SSE-tolerance |
 | P07 agent-loop | Asynx6 | ✅ 8f03544 (#9) + ctx-forwarding (#14) |
-| P08 control-plane api/cli | Leonars | 🔨 #15, PR feat/p08-control-plane, hold di V |
-| P09 e2e fibonacci gate | Leo (harness: Asynx6) | 🔨 #16, harness merged (#13), PR #14 fix contract, debug 401 gw tangani |
+| P08 control-plane api/cli | Leonars | 🔨 #15 closed, branch feat/p08-control-plane — pending rebase P09/P11 first |
+| P09 e2e fibonacci gate | Leo (harness: Asynx6) | ✅ 331883f (#21 merged) — verdict shortcut PASS/FAIL alongside tool_call |
 | P10 CLI operator `nexus` | Asynx6 (self) | ✅ 78879c4 (run/replay/tasks/healthz), +79708f6 (--follow) |
-| P11 web dashboard minimal | TBD | 🆕 #18, waiting |
+| P11 web dashboard minimal | Leo | ✅ 748a746 (#23 merged) — apps/web + closes #18 |
 | P12 memory package | Kevin+Vinz | ✅ b63adb5 (#20) — Kevin's MemoryManager (pluggable) + VinZ's EventRecall (sqlite) |
+| P13 multi-agent coordination | Kevin (asynx3) | 🆕 assign #24 — hermes-link ↔ EventStore per-agent stream |
 
-Cross-test: 108 tests, 91 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#15(hold),#20. HEAD: b63adb5.
+Cross-test: 118 tests, 101 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#20,#21,#23. Closed without merge: #15 (Leonars PR superseded), #22 (Kevin P11 → Leo #23 picked). HEAD: 748a746.
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
