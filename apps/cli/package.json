@@ -1,13 +1,28 @@
 {
-  "name": "@nexus/cli",
-  "version": "0.0.1",
-  "private": true,
+  "name": "@asynx6/nexus-cli",
+  "version": "0.1.0",
+  "private": false,
   "type": "module",
   "main": "index.js",
-  "exports": {
-    ".": "./index.js"
+  "bin": {
+    "nexus": "bin.mjs"
   },
-  "description": "nexus command: agent/sandbox/task/logs/events",
+  "files": [
+    "index.js",
+    "src/",
+    "bin.mjs",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./cli": "./src/cli.js"
+  },
+  "description": "Open-source AI Agent Operating Environment CLI: run, replay, tasks, healthz.",
+  "keywords": ["ai", "agent", "cli", "sandbox", "events", "multi-agent", "llm", "nodejs"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test"
   },
