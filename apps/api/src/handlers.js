@@ -94,12 +94,14 @@ export function makeHandlers(deps) {
         permissions: permissions.listGrants(agentId),
       });
 
-      // synchronous event writes (Vin z rule: row + task.started before spawn)
-      const runId = taskId; // task id doubles as the event subject for SSE grouping
-      bus.emit(makeEvent(EVENTS.TASK_CREATED, { prompt, agentId, model: record.model }, runId));
-      bus.emit(makeEvent(EVENTS.SANDBOX_CREATED, { image: requestedImage, sandboxId }, runId));
-      bus.emit(makeEvent(EVENTS.SANDBOX_STARTED, { sandboxId }, runId));
-      bus.emit(makeEvent(EVENTS.TASK_STARTED, { agentId, sandboxId }, runId));
+      // synchronous event writes (Vin z rule: row + task.started before spawn).
+      // Task-level events use taskId as subject; sandbox events use sandboxId so
+      // SSE filters by sandbox work and eventStore.replay({subject:sandboxId}) finds them.
+      const taskRunId = taskId;
+      bus.emit(makeEvent(EVENTS.TASK_CREATED, { prompt, agentId, model: record.model }, taskRunId));
+      bus.emit(makeEvent(EVENTS.SANDBOX_CREATED, { image: requestedImage, sandboxId }, sandboxId));
+      bus.emit(makeEvent(EVENTS.SANDBOX_STARTED, { sandboxId }, sandboxId));
+      bus.emit(makeEvent(EVENTS.TASK_STARTED, { agentId, sandboxId }, taskRunId));
 
       // background loop spawn (fire-and-forget; tracked by store.holdRun for test shutdown)
       const { AgentLoop, loopTools } = globalThis.__nexus_agent_runtime__;
@@ -123,11 +125,11 @@ export function makeHandlers(deps) {
           });
           bus.emit(makeEvent(result.done ? EVENTS.TASK_COMPLETED : EVENTS.TASK_FAILED, {
             steps: result.steps, answerLength: (result.answer || '').length,
-          }, runId));
+          }, taskRunId));
         } catch (e) {
           logger?.error?.('task crashed', { taskId, err: e?.message });
           store.finish(taskId, { status: 'failed', error: e?.message ?? String(e), steps: 0 });
-          bus.emit(makeEvent(EVENTS.TASK_FAILED, { error: e?.message ?? 'unknown' }, runId));
+          bus.emit(makeEvent(EVENTS.TASK_FAILED, { error: e?.message ?? 'unknown' }, taskRunId));
         } finally {
           // sandbox cleanup is server.js's job (lifecycle); we don't rm here
         }

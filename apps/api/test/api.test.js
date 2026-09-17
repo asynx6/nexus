@@ -190,18 +190,26 @@ test("SSE stream: replays historical events with correct content-type", async ()
 
     const chunks = [];
     const res = new Writable({ write(c, _e, cb) { chunks.push(c.toString("utf8")); cb(); } });
-    res.writeHead = function (s, h) { this.statusCode = s; this._headers = h || {}; this.headersSent = true; };
+    res.writeHead = function (s, h) {
+      this.statusCode = s;
+      this._headers = h || {};
+      this.headersSent = true;
+      chunks.push(`HTTP/1.1 ${s} ${s === 200 ? 'OK' : ''}\r\n` +
+        Object.entries(this._headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') + '\r\n\r\n');
+    };
     res.setHeader = function (k, v) { (this._headers = this._headers || {})[k.toLowerCase()] = v; };
     res.write = function (c) { chunks.push(typeof c === "string" ? c : c.toString("utf8")); return true; };
     res.end = function () { this.writableEnded = true; };
 
     await app.dispatch(req, res);
     await new Promise((r) => setTimeout(r, 30));
+    // Tear down: emit req 'close' so the SSE handler unsubs + cleans up
+    req.emit('close');
 
     const text = chunks.join("");
     assert.match(text, /text\/event-stream/, "SSE content-type header");
-    assert.match(text, /"name":"task\\.created"/, "replayed task.created event");
-    assert.match(text, /"name":"task\\.started"/, "replayed task.started event");
+    assert.match(text, /"task\.created"/, "replayed task.created event");
+    assert.match(text, /"task\.started"/, "replayed task.started event");
     const all = [...app.eventStore.replay({ since: 0 })];
     assert.ok(all.some((e) => e.subject === sandboxId && e.name === "sandbox.created"), "sandbox.created in store");
   });
