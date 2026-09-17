@@ -6,7 +6,7 @@ on:
       - 'v*'
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: apps/cli
@@ -17,15 +17,15 @@ jobs:
           clean: true
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: 22.x
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
       - name: Generate lockfile
-        run: npm ci --force
+        run: npm install
       - name: Publish to npm
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Success tag
+      - name: Success
         if: success()
         run: echo "Published ${{ github.ref_name }}"
