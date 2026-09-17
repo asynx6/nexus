@@ -19,7 +19,7 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P12 memory package | Kevin+Vinz | ✅ b63adb5 (#20) — Kevin's MemoryManager (pluggable) + VinZ's EventRecall (sqlite) |
 | P13 multi-agent coordination | Kevin (asynx3) | 🆕 assign #24 — hermes-link ↔ EventStore per-agent stream |
 
-Cross-test: 118 tests, 101 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#20,#21,#23. Closed without merge: #15 (Leonars PR superseded), #22 (Kevin P11 → Leo #23 picked). HEAD: 748a746.
+Cross-test: 120 tests, 103 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#20,#21,#23. Closed without merge: #15 (Leonars PR superseded), #22 (Kevin P11 → Leo #23 picked). HEAD: 17e2089. Release: v0.1.0.
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
