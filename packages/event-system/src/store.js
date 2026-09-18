@@ -199,6 +199,11 @@ export class EventStore {
     return Number(this.#db.prepare('SELECT COUNT(*) AS c FROM events').get().c);
   }
 
+  /** @returns {string} absolute path to the JSONL data file */
+  get jsonlPath() {
+    return this.#jsonlPath;
+  }
+
   /** Drop the SQLite index and rebuild it by scanning the JSONL file. */
   rebuildIndex() {
     this.#wbumps = [];
