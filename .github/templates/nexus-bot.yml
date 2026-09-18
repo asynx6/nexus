@@ -1,0 +1,72 @@
+name: nexus-bot
+
+# Trigger when someone comments on a PR. Body must start with `/nexus`.
+# Only PR comments are processed (not plain issues).
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  run:
+    # Only react to comments on pull requests
+    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/nexus')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Parse command
+        id: parse
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          # /nexus <command> [args...]
+          CMD="$(echo "$BODY" | awk '{print $2}')"
+          ARGS="$(echo "$BODY" | cut -d' ' -f3-)"
+          if [ -z "$CMD" ]; then CMD="help"; fi
+          echo "cmd=$CMD" >> "$GITHUB_OUTPUT"
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+          echo "::debug::Nexus bot command: $CMD $ARGS"
+
+      - name: Install nexus CLI
+        run: npm install -g @asynx6/nexus-cli@latest --no-audit --no-fund
+
+      - name: Run nexus doctor
+        if: steps.parse.outputs.cmd == 'doctor'
+        run: nexus doctor --fix
+
+      - name: Run nexus test
+        if: steps.parse.outputs.cmd == 'test'
+        run: nexus test
+
+      - name: Show nexus status
+        if: steps.parse.outputs.cmd == 'status'
+        run: nexus status
+
+      - name: Show help
+        if: steps.parse.outputs.cmd == 'help'
+        run: |
+          echo "Available /nexus commands:"
+          echo "  /nexus doctor   — run environment doctor with auto-fix"
+          echo "  /nexus test     — run NEXUS test suite"
+          echo "  /nexus status   — show NEXUS project status"
+          echo "  /nexus help     — show this help"
+
+      - name: Reply to comment
+        if: always()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: nexus-bot
+          message: |
+            🤖 **Nexus bot** ran `${{ steps.parse.outputs.cmd }} ${{ steps.parse.outputs.args }}`
+            Result: ${{ job.status }}
