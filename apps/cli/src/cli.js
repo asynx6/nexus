@@ -3,6 +3,7 @@
 
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
+import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
@@ -21,6 +22,7 @@ Usage:
   nexus healthz                                          check gateway reachability
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
+  nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -115,6 +117,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       stderr('init: ' + e.message);
       return 1;
     }
+  }
+
+  if (args.cmd === 'audit') {
+    return await runAudit(argv.slice(1), env, stdout, stderr);
   }
 
   if (args.cmd === 'replay') {
