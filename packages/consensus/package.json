@@ -1,0 +1,19 @@
+{
+  "name": "@nexus/consensus",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "multi-model consensus layer: parallel run + majority voting on tool_call + verdict, with single-model fallback on 401/5xx",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*",
+    "@nexus/model-providers": "*",
+    "@nexus/shared": "*"
+  }
+}
