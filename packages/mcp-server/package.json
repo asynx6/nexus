@@ -25,7 +25,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/mcp.test.js",
     "start": "node src/cli.js"
   },
   "dependencies": {
