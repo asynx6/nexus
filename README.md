@@ -10,8 +10,11 @@ NEXUS gives an LLM agent:
 - **Pluggable tools** (filesystem, terminal, network) gated by a permission manager and audit trail.
 - An **append-only event log** of every tool call, decision, and result, replayable from any point.
 - **Long-term memory** (short-term, long-term, project) with both pluggable storage and an event-stream recall index.
-- A **CLI operator** (`nexus run`, `nexus replay`, `nexus tasks`, `nexus healthz`) to drive agents from the terminal.
+- A **CLI operator** (`nexus run`, `nexus replay`, `nexus tasks`, `nexus healthz`, `nexus init`) to drive agents from the terminal.
 - A **minimal web dashboard** for live event streams and replay.
+- A **Model Context Protocol (MCP) server** so Claude Code, Cursor, and other MCP-aware clients can use NEXUS as a tool source.
+- **Multi-model consensus** — N agents vote on tool calls; automatic fallback when a primary model errors out.
+- **Multi-agent supervision** and **per-project knowledge-graph memory** (in v0.3.0).
 
 Everything runs on Node 22 with `node:sqlite`. Zero external runtime dependencies. Any OpenAI-compatible chat-completions endpoint works as the model backend.
 
@@ -114,9 +117,22 @@ Code conventions:
 
 ## Status
 
-Active development. Current MVP is **v0.1.0**: full event-system, sandbox, security, tools, providers, agent loop, memory, CLI, and web dashboard. Multi-agent coordination is in progress.
+Current release is **v0.2.0** (Brainstorm Sprint): adds MCP server, multi-model consensus, replay UI, and `nexus init` wizard.
 
-See `docs/TASKS.md` for the live board and `docs/plan-nexus.md` for the full roadmap.
+In flight for **v0.3.0** (Autonomy Sprint, 2026-09-18+):
+
+| Milestone | Theme | Examples |
+|-----------|-------|----------|
+| A | AI-native power | multi-agent supervisor, knowledge-graph memory, tool auto-discovery, prompt versioning |
+| B | Observability | live web dashboard, replay diff between two runs |
+| C | Developer experience | `nexus doctor --fix`, `nexus ask` inline playground |
+| D | Integrations + DB | GitHub Actions bot, webhook receiver, pluggable DB (SQLite default + PG/MySQL/Mongo), one-click deploy |
+| E | Security + governance | per-project encrypted secrets, immutable hash-chained audit, rate limiting, sandbox policy DSL |
+| F | Multi-modal | image, audio, file uploads, screenshot tool |
+| G | Scale + reliability | cluster mode, event snapshot, graceful shutdown, k8s health probes |
+| H | Monetization-ready | license server, opt-in telemetry, plugin marketplace, hosted NEXUS |
+
+See `docs/TASKS.md` for the live board and `docs/plan-nexus.md` for the full roadmap. Track milestone progress at https://github.com/asynx6/nexus/milestone/1.
 
 ## License
 
