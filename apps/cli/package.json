@@ -45,5 +45,8 @@
     "@nexus/security": "*",
     "@nexus/event-system": "*",
     "@nexus/shared": "*"
+  },
+  "devDependencies": {
+    "@nexus/audit": "file:../../packages/audit"
   }
 }
