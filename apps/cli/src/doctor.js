@@ -1,7 +1,8 @@
 // nexus doctor — comprehensive environment health check.
 // Run before first agent invocation to catch setup issues early.
 // Zero deps, stdlib only.
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, mkdirSync, copyFileSync, chmodSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { hostname, platform, arch } from 'node:os';
 import { version as nodeVersion } from 'node:process';
 import { execFileSync } from 'node:child_process';
@@ -82,4 +83,79 @@ export async function runDoctor({ env = process.env, stdout = console.log, exec 
 
   stdout(exit === 0 ? '\nRequired checks passed. Review warnings above.' : '\nIssues found. See above.');
   return exit;
+}
+
+/**
+ * nexus doctor --fix — auto-repair common setup issues.
+ *
+ * Actions performed (idempotent, safe to re-run):
+ *   1. .env-gateway missing → copy from .env.example (chmod 600).
+ *   2. .env-gateway wrong perms → chmod 600.
+ *   3. package-lock.json missing + package.json present → npm install --package-lock-only.
+ *
+ * Returns { actions: [{name, ok, detail}], summary }.
+ * Never modifies gateway key contents; never deletes user data.
+ */
+export async function runDoctorFix({ cwd = process.cwd(), exec = execFileSync, stdout = console.log, stderr = console.error } = {}) {
+  const actions = [];
+  const base = resolve(cwd);
+  const envExample = join(base, '.env.example');
+  const envFile = join(base, '.env-gateway');
+  const pkgJson = join(base, 'package.json');
+  const lockFile = join(base, 'package-lock.json');
+
+  // 1. Recreate .env-gateway from .env.example when missing
+  if (!existsSync(envFile)) {
+    if (existsSync(envExample)) {
+      try {
+        mkdirSync(base, { recursive: true });
+        copyFileSync(envExample, envFile);
+        chmodSync(envFile, 0o600);
+        actions.push({ name: 'create-env-gateway', ok: true, detail: '.env-gateway created from .env.example (mode 600)' });
+        stdout('[fix] created .env-gateway (mode 600)');
+      } catch (e) {
+        actions.push({ name: 'create-env-gateway', ok: false, detail: e.message });
+        stderr('[fix] failed to create .env-gateway:', e.message);
+      }
+    } else {
+      actions.push({ name: 'create-env-gateway', ok: true, detail: 'skipped (no .env.example)' });
+    }
+  } else {
+    // 2. chmod 600 on existing .env-gateway if wrong
+    try {
+      const st = statSync(envFile);
+      const mode = st.mode & 0o777;
+      if (mode !== 0o600) {
+        chmodSync(envFile, 0o600);
+        actions.push({ name: 'chmod-env-gateway', ok: true, detail: `chmod ${mode.toString(8)} → 600` });
+        stdout(`[fix] chmod .env-gateway ${mode.toString(8)} → 600`);
+      } else {
+        actions.push({ name: 'chmod-env-gateway', ok: true, detail: 'already 600' });
+      }
+    } catch (e) {
+      actions.push({ name: 'chmod-env-gateway', ok: false, detail: e.message });
+    }
+  }
+
+  // 3. Regen package-lock.json if missing
+  if (!existsSync(lockFile) && existsSync(pkgJson)) {
+    try {
+      exec('npm', ['install', '--package-lock-only', '--no-audit', '--no-fund'], { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
+      actions.push({ name: 'regen-lockfile', ok: true, detail: 'regenerated lockfile via npm install --package-lock-only' });
+      stdout('[fix] regenerated package-lock.json');
+    } catch (e) {
+      actions.push({ name: 'regen-lockfile', ok: false, detail: e.message });
+      stderr('[fix] npm install failed:', e.message);
+    }
+  } else if (existsSync(lockFile)) {
+    actions.push({ name: 'regen-lockfile', ok: true, detail: 'already present' });
+  }
+
+  const changed = actions.filter((a) => /created|chmod|regenerated|lockfile/.test(a.detail) && a.ok);
+  const summary = changed.length === 0
+    ? 'nothing to fix — environment already healthy'
+    : `${changed.length} change(s): ${changed.map((a) => a.name).join(', ')}`;
+
+  stdout(`\n[fix] ${summary}`);
+  return { actions, summary };
 }

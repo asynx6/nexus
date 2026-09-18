@@ -2,7 +2,7 @@
 // Zero deps. Returns exit code.
 
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
-import { runDoctor } from './doctor.js';
+import { runDoctor, runDoctorFix } from './doctor.js';
 import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
 import { makeEvent } from '@nexus/event-system';
@@ -20,7 +20,7 @@ Usage:
                                                           (open http://H:N/ in a browser)
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
-  nexus doctor                                           full environment health check (Node, env, gateway, sqlite, docker)
+  nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
   nexus --help                                           show this message
@@ -87,6 +87,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
   }
 
   if (args.cmd === 'doctor') {
+    if (args.flags.fix) {
+      const result = await runDoctorFix({ stdout, stderr });
+      return result.actions.every((a) => a.ok) ? 0 : 1;
+    }
     return await runDoctor({ env, stdout, stderr });
   }
 
