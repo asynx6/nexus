@@ -3,6 +3,7 @@
 import { request, execStartStream, demuxExecStream, SocketHttpError } from './sockhttp.js';
 import { tarCreate } from './tar.js';
 import { randomUUID } from 'node:crypto';
+import { PolicyEngine, DEFAULT_POLICY, PolicyDeniedError } from '../src/policy.js';
 
 export const LABEL_MANAGED_BY = 'nexus.managed-by';
 export const LABEL_MANAGED_VALUE = 'nexus-sandbox-runtime';
@@ -49,13 +50,19 @@ export const LABEL_MANAGED_VALUE = 'nexus-sandbox-runtime';
 const DEFAULT_IMAGE = 'python:3.12-slim';
 
 export class DockerRuntime {
-  /** @param {{socketPath?: string, apiVersion?: string}} [opts] */
+  /** @param {{socketPath?: string, apiVersion?: string, policy?: PolicyEngine | Array}} [opts] */
   constructor(opts = {}) {
     this.socketPath = opts.socketPath ?? '/var/run/docker.sock';
     this.apiVersion = opts.apiVersion ?? 'v1.47';
     /** @type {Map<string,string>} sandbox id -> docker container id */
     this.containers = new Map();
     this.names = new Set();
+    // Optional policy gate. If absent → permissive (calls succeed without check).
+    if (opts.policy) {
+      this.policy = opts.policy instanceof PolicyEngine ? opts.policy : new PolicyEngine(opts.policy);
+    } else {
+      this.policy = null;
+    }
   }
 
   /** @param {string} p @param {string} method @param {object} [o] @param {object} [m] */
@@ -65,6 +72,8 @@ export class DockerRuntime {
 
   /** @param {CreateSpec} spec @returns {Promise<string>} */
   async create(spec = {}) {
+    // Policy gate (allow unless policy explicitly denies).
+    this.policy?.gateCreate(spec);
     const id = `sbx-${randomUUID().slice(0, 8)}`;
     const name = spec.name ?? id;
     const body = {
@@ -127,6 +136,8 @@ export class DockerRuntime {
 
   /** @param {string} id @param {string[]} cmd @param {ExecOpts} [opts] @returns {Promise<ExecResult>} */
   async exec(id, cmd, opts = {}) {
+    // Policy gate (allow unless policy explicitly denies).
+    this.policy?.gateExec(cmd);
     const cid = this.#cid(id);
     const createRes = await this.#api(`/containers/${cid}/exec`, 'POST', {
       headers: { 'Content-Type': 'application/json' },

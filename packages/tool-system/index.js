@@ -6,3 +6,4 @@ export { ToolExecutor } from './src/executor.js';
 export { validateArgs } from './src/schema.js';
 export { fsTools } from './src/tools/fs.js';
 export { terminalTools } from './src/tools/terminal.js';
+export { imageTools } from './src/tools/image.js';

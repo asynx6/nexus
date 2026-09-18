@@ -4,21 +4,23 @@
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
-import { startDashboard, parseDashboardArgs } from './dashboard.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
-import { join } from 'node:path';
+import { createReplayServer } from '@nexus/event-system/replay-server.js';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const HELP = `nexus — AI Agent Operating Environment
 Usage:
   nexus run "<task>" [--max-steps=N] [--model=NAME]      run agent on a task
   nexus replay [--subject=ID] [--since=SEQ] [--follow]   replay events from store
                                                           --follow tails live events (poll default 1s)
+  nexus replay --port N [--host=H] [--no-open]           serve browser-based event timeline UI on :N
+                                                          (open http://H:N/ in a browser)
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
-  nexus dashboard [--port=N]                            live dashboard web UI on http://localhost:N
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -90,15 +92,6 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     return await runDoctor({ env, stdout, stderr });
   }
 
-  if (args.cmd === 'dashboard') {
-    const port = Number(args.flags.port ?? 8484);
-    const srv = await startDashboard({ port, silent: false, log: { info: stdout, warn: stderr, error: stderr } });
-    const stop = () => { srv.closeGracefully?.().finally(() => process.exit(0)); };
-    process.on('SIGINT', stop);
-    process.on('SIGTERM', stop);
-    return new Promise(() => {});
-  }
-
   if (args.cmd === 'init') {
     let parsed;
     try { parsed = parseInitArgs(argv.slice(1)); }
@@ -125,6 +118,52 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
   }
 
   if (args.cmd === 'replay') {
+    // Browser UI mode: --port[=N] (or positional 9090) opens the replay server.
+    const portFlag = args.flags.port ?? args.flags['serve-port'];
+    const hostFlag = args.flags.host ?? args.flags['serve-host'] ?? '127.0.0.1';
+    const noOpen = !!args.flags['no-open'] || args.flags.noOpen === true;
+    if (portFlag !== undefined || args.flags.ui === true) {
+      const port = Number(portFlag ?? 9090);
+      if (!Number.isFinite(port) || port <= 0 || port > 65535) { stderr('replay: --port must be 1..65535'); return 2; }
+      const ctx = buildReplayCtx();
+      const store = await ctx.store.open();
+      // resolve packages/event-system/public regardless of CWD: replay-server
+      // is shipped inside the installed package, so we go up from this file.
+      const here = dirname(fileURLToPath(import.meta.url));
+      // here = apps/cli/src; publicDir = ../../packages/event-system/public
+      // Walk up until we find a sibling packages/event-system/public; fall back to relative.
+      let publicDir = resolve(here, '..', '..', '..', 'packages', 'event-system', 'public');
+      // Soft fallback: CWD-relative path for source-tree runs.
+      try {
+        const fs = await import('node:fs');
+        if (!fs.existsSync(publicDir)) {
+          publicDir = resolve(process.cwd(), 'packages', 'event-system', 'public');
+        }
+      } catch { /* ignore */ }
+      const srv = createReplayServer({ store, publicDir, host: String(hostFlag), port });
+      try {
+        await srv.listen();
+        const url = `http://${srv.host}:${srv.port}/`;
+        stdout(`nexus replay ui: ${url}`);
+        stdout(`  serving static from ${publicDir}`);
+        stdout(`  store: ${ctx.store.dir}/events.jsonl (count=${store.count()})`);
+        stdout('  press Ctrl+C to stop');
+        if (!noOpen) {
+          try {
+            const { spawn } = await import('node:child_process');
+            const opener = process.platform === 'darwin' ? 'open'
+              : process.platform === 'win32' ? 'start'
+              : 'xdg-open';
+            spawn(opener, [url], { stdio: 'ignore', detached: true }).unref();
+          } catch { /* best-effort */ }
+        }
+        await new Promise(() => {}); // run until SIGINT
+      } finally {
+        try { await srv.close(); } catch {}
+        try { await store.close(); } catch {}
+      }
+      return 0;
+    }
     const ctx = buildReplayCtx();
     const store = await ctx.store.open();
     const subject = args.flags.subject;

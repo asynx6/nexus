@@ -1,34 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NEXUS Dashboard</title>
-<link rel="stylesheet" href="/dashboard.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NEXUS — replay</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --line: #232936;
+    --text: #d8dde6;
+    --muted: #8a93a6;
+    --accent: #6cb2ff;
+    --warn: #ffb454;
+    --err: #ff6b6b;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 200ms; }
+  header .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  header .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .filters { display: flex; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  .filters input, .filters select { background: #0b0e13; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  .filters input { min-width: 160px; }
+  .filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .filters button { background: var(--accent); color: #0b0e13; border: 0; border-radius: 4px; padding: 4px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .filters button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  main { display: grid; grid-template-columns: 1fr 420px; height: calc(100vh - 92px); }
+  .timeline { overflow: auto; border-right: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 60px 160px 180px 1fr; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); cursor: pointer; align-items: baseline; }
+  .row:hover { background: #1a1f2a; }
+  .row.selected { background: #1d2638; }
+  .row .seq { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row .ts { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .row .subject { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  aside.detail { overflow: auto; padding: 12px 14px; }
+  aside.detail h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  pre.json { background: #0b0e13; border: 1px solid var(--line); border-radius: 4px; padding: 10px; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  .kv { display: grid; grid-template-columns: 100px 1fr; gap: 4px 12px; margin-bottom: 12px; }
+  .kv .k { color: var(--muted); }
+</style>
 </head>
 <body>
 <header>
-  <h1>NEXUS</h1>
-  <span class="status"><span class="dot"></span><span id="conn">connecting…</span></span>
+  <span class="dot" id="dot" title="live status"></span>
+  <h1>NEXUS replay</h1>
+  <span class="count" id="count">0 events</span>
+  <span style="flex:1"></span>
+  <label style="color:var(--muted)"><input type="checkbox" id="follow" checked /> follow</label>
 </header>
-
+<div class="filters">
+  <label>subject <input id="f-subject" placeholder="agent-… / task-… / sandbox-…" /></label>
+  <label>name <input id="f-name" placeholder="agent.started" /></label>
+  <label>limit <input id="f-limit" type="number" min="1" max="10000" value="500" style="width:90px" /></label>
+  <button id="apply">apply</button>
+  <button id="clear" class="secondary">clear</button>
+</div>
 <main>
-  <section class="card">
-    <h2>Agents</h2>
-    <ul id="agents"><li class="empty">No agents yet</li></ul>
-  </section>
-
-  <section class="card">
-    <h2>Tasks</h2>
-    <ul id="tasks"><li class="empty">No tasks yet</li></ul>
-  </section>
-
-  <section class="card">
-    <h2>Recent events</h2>
-    <ul id="events"><li class="empty">Awaiting stream…</li></ul>
-  </section>
+  <div class="timeline" id="timeline"><div class="empty">no events — pick a filter or wait for live data</div></div>
+  <aside class="detail" id="detail">
+    <h2>detail</h2>
+    <div id="detail-body" style="color:var(--muted)">click an event to inspect</div>
+  </aside>
 </main>
-
-<script src="/dashboard.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>

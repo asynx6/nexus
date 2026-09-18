@@ -35,4 +35,7 @@ export const EVENTS = Object.freeze({
   PERMISSION_DECISION: 'permission.decision',
   PROVIDER_REQUEST: 'provider.request',
   PROVIDER_RESPONSE: 'provider.response',
+  CONSENSUS_ROUND: 'consensus.round',     // data: { round, models, votes, agreement }
+  CONSENSUS_VERDICT: 'consensus.verdict',  // data: { mode, models, winner, agreement, reason }
+  POLICY_DECISION: 'policy.decision',     // data: { allow, reason, ruleIndex, ctx }
 });

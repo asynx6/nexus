@@ -18,8 +18,9 @@ Status board (updated lead 2026-09-16): ✅ merged | 🔨 in progress | ⏭️ n
 | P11 web dashboard minimal | Leo | ✅ 748a746 (#23 merged) — apps/web + closes #18 |
 | P12 memory package | Kevin+Vinz | ✅ b63adb5 (#20) — Kevin's MemoryManager (pluggable) + VinZ's EventRecall (sqlite) |
 | P13 multi-agent coordination | Kevin (asynx3) | ✅ 5d02eb2 (#24 merged) — per-agent EventStore streams + handshake + cross-agent messaging |
+| P16 replay UI (`nexus replay --port`) | Kevin (asynx3) | 🔨 feat/p16-replay-ui — replay-server.js + public/ (vanilla timeline + SSE follow + filter), 4 new tests pass |
 
-Cross-test: 131 tests, 114 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#20,#21,#23,#24. Closed without merge: #15 (Leonars PR superseded), #22 (Kevin P11 → Leo #23 picked). HEAD: 5d02eb2. Release: v0.1.0. Branches: 1 remote (main), 0 PR open.
+Cross-test: 141 tests, 124 pass, 0 fail, 17 skipped (sandbox+gateway stubs). PR merged: #3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#13,#14,#20,#21,#23,#24. Closed without merge: #15 (Leonars PR superseded), #22 (Kevin P11 → Leo #23 picked). HEAD: 5d02eb2. Release: v0.1.0. Branches: 1 remote (main), 0 PR open.
 
 Pemecahan plan-nexus.md jadi task realistis. Dependency didahulukan.
 Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
