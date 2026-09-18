@@ -3,8 +3,10 @@
 
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor } from './doctor.js';
+import { scaffoldProject, parseInitArgs } from './init.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
+import { join } from 'node:path';
 
 const HELP = `nexus — AI Agent Operating Environment
 Usage:
@@ -14,6 +16,7 @@ Usage:
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus doctor                                           full environment health check (Node, env, gateway, sqlite, docker)
+  nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -79,6 +82,31 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
 
   if (args.cmd === 'doctor') {
     return await runDoctor({ env, stdout, stderr });
+  }
+
+  if (args.cmd === 'init') {
+    let parsed;
+    try { parsed = parseInitArgs(argv.slice(1)); }
+    catch (e) { stderr('init: ' + e.message); return 2; }
+
+    let answers;
+    try {
+      answers = parsed.yes
+        ? { name: parsed.name, scope: '@' + parsed.name, provider: 'hermes-agent', sandbox: 'subprocess' }
+        : await promptInitAnswers({ name: parsed.name, stdout, stderr });
+    } catch (e) {
+      stderr('init: ' + e.message);
+      return 2;
+    }
+
+    const target = join(process.cwd(), parsed.name);
+    try {
+      await scaffoldProject({ target, answers, yes: parsed.yes, stdout, stderr });
+      return 0;
+    } catch (e) {
+      stderr('init: ' + e.message);
+      return 1;
+    }
   }
 
   if (args.cmd === 'replay') {
