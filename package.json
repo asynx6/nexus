@@ -4,11 +4,19 @@
   "private": true,
   "description": "NEXUS — Open-Source AI Agent Operating Environment (monorepo root)",
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "lint": "node --check .tmp-check-all.mjs || true"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@nexus/audit": "^0.0.1"
+  }
 }
