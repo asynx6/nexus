@@ -5,8 +5,16 @@
   "type": "module",
   "main": "index.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./replay-server.js": "./replay-server.js",
+    "./public/*": "./public/*"
   },
+  "files": [
+    "index.js",
+    "src/",
+    "replay-server.js",
+    "public/"
+  ],
   "description": "EventBus + append-only EventStore (JSONL + SQLite index), replay iterator",
   "scripts": {
     "test": "node --test"

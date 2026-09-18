@@ -11,7 +11,9 @@
     "index.js",
     "src/",
     "bin.mjs",
-    "README.md"
+    "README.md",
+    "../event-system/replay-server.js",
+    "../event-system/public/"
   ],
   "exports": {
     ".": "./index.js",
