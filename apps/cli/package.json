@@ -1,6 +1,6 @@
 {
   "name": "@asynx6/nexus-cli",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": false,
   "type": "module",
   "main": "index.js",
@@ -11,14 +11,25 @@
     "index.js",
     "src/",
     "bin.mjs",
-    "README.md"
+    "README.md",
+    "../event-system/replay-server.js",
+    "../event-system/public/"
   ],
   "exports": {
     ".": "./index.js",
     "./cli": "./src/cli.js"
   },
   "description": "Open-source AI Agent Operating Environment CLI: run, replay, tasks, healthz.",
-  "keywords": ["ai", "agent", "cli", "sandbox", "events", "multi-agent", "llm", "nodejs"],
+  "keywords": [
+    "ai",
+    "agent",
+    "cli",
+    "sandbox",
+    "events",
+    "multi-agent",
+    "llm",
+    "nodejs"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22"

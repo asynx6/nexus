@@ -1,0 +1,36 @@
+{
+  "name": "@asynx6/nexus-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol (MCP) server for NEXUS — exposes agent events and tasks to Claude/Cursor",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "nexus-mcp": "src/cli.js"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "nexus",
+    "ai",
+    "agent",
+    "model-context-protocol",
+    "claude",
+    "cursor"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/mcp.test.js",
+    "start": "node src/cli.js"
+  },
+  "dependencies": {
+    "@nexus/event-system": "*",
+    "@nexus/security": "*",
+    "@nexus/shared": "*"
+  }
+}
