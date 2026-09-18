@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEXUS Dashboard</title>
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+<header>
+  <h1>NEXUS</h1>
+  <span class="status"><span class="dot"></span><span id="conn">connecting…</span></span>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Agents</h2>
+    <ul id="agents"><li class="empty">No agents yet</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>Tasks</h2>
+    <ul id="tasks"><li class="empty">No tasks yet</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>Recent events</h2>
+    <ul id="events"><li class="empty">Awaiting stream…</li></ul>
+  </section>
+</main>
+
+<script src="/dashboard.js"></script>
+</body>
+</html>

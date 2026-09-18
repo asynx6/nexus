@@ -4,6 +4,7 @@
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
+import { startDashboard, parseDashboardArgs } from './dashboard.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 import { join } from 'node:path';
@@ -17,6 +18,7 @@ Usage:
   nexus healthz                                          check gateway reachability
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
+  nexus dashboard [--port=N]                            live dashboard web UI on http://localhost:N
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -86,6 +88,15 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       return result.actions.every((a) => a.ok) ? 0 : 1;
     }
     return await runDoctor({ env, stdout, stderr });
+  }
+
+  if (args.cmd === 'dashboard') {
+    const port = Number(args.flags.port ?? 8484);
+    const srv = await startDashboard({ port, silent: false, log: { info: stdout, warn: stderr, error: stderr } });
+    const stop = () => { srv.closeGracefully?.().finally(() => process.exit(0)); };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+    return new Promise(() => {});
   }
 
   if (args.cmd === 'init') {
