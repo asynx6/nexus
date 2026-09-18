@@ -7,7 +7,12 @@
   "exports": {
     ".": "./index.js",
     "./replay-server.js": "./replay-server.js",
-    "./public/*": "./public/*"
+    "./public/*": "./public/*",
+    "./db": "./src/db/factory.js",
+    "./db/sqlite": "./src/db/sqlite.js",
+    "./db/postgres": "./src/db/postgres.js",
+    "./db/mysql": "./src/db/mysql.js",
+    "./db/mongo": "./src/db/mongo.js"
   },
   "files": [
     "index.js",
@@ -15,7 +20,7 @@
     "replay-server.js",
     "public/"
   ],
-  "description": "EventBus + append-only EventStore (JSONL + SQLite index), replay iterator",
+  "description": "EventBus + append-only EventStore (JSONL + SQLite index), replay iterator + optional PG/MySQL/Mongo adapters",
   "scripts": {
     "test": "node --test"
   },
