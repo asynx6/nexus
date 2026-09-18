@@ -23,6 +23,7 @@ import { TaskStore } from './state.js';
 import { createRouter, sendJson } from './router.js';
 import { bearerAuth, compose } from './auth.js';
 import { makeHandlers } from './handlers.js';
+import { installGracefulShutdown } from './graceful.js';
 
 // expose ModelProvider + AgentLoop on globalThis so handlers.js can avoid a
 // hard dep edge — the api facade depends on both packages already; we just
@@ -85,14 +86,17 @@ export async function buildApp(opts = {}) {
 export function serve(app, opts = {}) {
   const port = opts.port ?? (Number(process.env.NEXUS_API_PORT) || 4000);
   const host = opts.host ?? (process.env.NEXUS_API_HOST || '127.0.0.1');
+  const autoShutdown = opts.autoShutdown !== false; // opt-out for tests
   const server = createServer(app.dispatch);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {
       server.removeListener('error', reject);
       const addr = server.address();
+      const handle = { server, port: addr.port, host };
+      if (autoShutdown) handle.shutdown = installGracefulShutdown({ app, http: handle, logger: app.logger });
       app.logger.info('api listening', { host, port: addr.port });
-      resolve({ server, port: addr.port, host });
+      resolve(handle);
     });
   });
 }
