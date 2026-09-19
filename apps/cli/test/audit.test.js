@@ -42,6 +42,7 @@ test('audit verify: tampered log returns 1 with index + reason', async () => {
     c.append({ a: 1 });
     c.append({ a: 2 });
     c.close();
+    // mutate the second line's payload
     const lines = readFileSync(path, 'utf8').split('\n').filter(Boolean);
     const second = JSON.parse(lines[1]);
     second.a = 999;

@@ -19,10 +19,14 @@ Usage:
                                                           --follow tails live events (poll default 1s)
   nexus replay --port N [--host=H] [--no-open]           serve browser-based event timeline UI on :N
                                                           (open http://H:N/ in a browser)
+  nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
+                                                          rewrites JSONL + sqlite index atomically. Optional --store
+                                                          overrides the default event store path.
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
+  nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
   nexus --help                                           show this message
 
 Env (read from .env-gateway or process env):
@@ -194,6 +198,38 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       }
       return 0;
     } finally { await store.close(); }
+  }
+
+  if (args.cmd === 'events' && args.task === 'compact') {
+    // nexus events compact [--keep-recent=N] [--store=PATH]
+    const keepRecent = Number(args.flags['keep-recent'] ?? args.flags.keepRecent ?? 1000);
+    if (!Number.isFinite(keepRecent) || keepRecent < 1) {
+      stderr('events compact: --keep-recent must be a positive integer');
+      return 2;
+    }
+    const storePath = args.flags.store;
+    const { compact } = await import('@nexus/event-system');
+    const { buildReplayCtx } = await import('./ctx.js');
+    const ctx = storePath
+      ? { store: { open: async () => new (await import('@nexus/event-system')).EventStore(storePath) } }
+      : buildReplayCtx();
+    const store = await ctx.store.open();
+    let result;
+    try {
+      const before = store.count();
+      result = compact(store, { keepRecent });
+      // store was closed by compact(); reopen to report after-state
+      const reopened = await ctx.store.open();
+      try {
+        const after = reopened.count();
+        stdout(`compact: ${before} → ${after} events (dropped ${result.dropped}, kept ${result.kept})`);
+        stdout(`store: ${reopened.jsonlPath}`);
+      } finally { reopened.close(); }
+      return 0;
+    } catch (e) {
+      stderr('events compact failed: ' + e.message);
+      return 1;
+    }
   }
 
   if (args.cmd === 'tasks') {
