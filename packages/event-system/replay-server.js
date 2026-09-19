@@ -51,7 +51,7 @@ export function parseSearch(url) {
 }
 
 /** Route a single HTTP request. Exported for unit tests. */
-export async function handle(req, res, { store, publicDir }) {
+export async function handle(req, res, { store, publicDir, closeHooks = new Set() } = {}) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return send(res, 405, { 'allow': 'GET, HEAD', 'content-type': 'text/plain' }, 'method not allowed');
   }
@@ -83,6 +83,18 @@ export async function handle(req, res, { store, publicDir }) {
         'x-accel-buffering': 'no',
       });
       const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* gone */ } }, 15_000);
+      // exitSignal: resolved when the client goes away or the server closes,
+      // so the follow loop never strands a pending timer (which would keep the
+      // node event loop alive and hang `npm test`).
+      let exited = false;
+      const exitSignal = new Promise((resolve) => {
+        const done = () => { if (!exited) { exited = true; resolve(); } };
+        req.socket.on('close', done);
+        req.socket.on('error', done);
+        closeHooks.add(done);
+        // socket timeout (slowloris guard) also terminates the stream
+        req.socket.on('timeout', () => { try { req.socket.destroy(); } catch {} done(); });
+      });
       let cursor = filter.since ?? 0;
       try {
         for (;;) {
@@ -93,13 +105,14 @@ export async function handle(req, res, { store, publicDir }) {
           }
           for (const env of batch) res.write(`data: ${JSON.stringify(env)}\n\n`);
           if (batch.length === 0) res.write(`: idle\n\n`);
-          if (req.socket.destroyed) break;
-          await new Promise((r) => setTimeout(r, 1000));
+          await Promise.race([new Promise((r) => setTimeout(r, 1000)), exitSignal]);
+          if (exited) break;
         }
       } catch (e) {
         try { res.write(`event: error\ndata: ${JSON.stringify({ message: e?.message ?? String(e) })}\n\n`); } catch {}
       } finally {
         clearInterval(ping);
+        for (const fn of closeHooks) { try { fn(); } catch {} }
         try { res.end(); } catch {}
       }
       return;
@@ -121,8 +134,12 @@ export async function handle(req, res, { store, publicDir }) {
   let rel = path === '/' ? '/index.html' : path;
   if (rel.includes('..')) return send(res, 400, { 'content-type': 'text/plain' }, 'bad path');
   const safe = normalize(rel).replace(/^[/\\]+/, '');
-  const abs = resolve(join(publicDir, safe));
-  if (!abs.startsWith(resolve(publicDir) + '/') && abs !== resolve(publicDir)) {
+  const root = resolve(publicDir);
+  const abs = resolve(join(root, safe));
+  // normalize separators so the containment check works on Windows too
+  const nAbs = abs.replace(/\\/g, '/');
+  const nRoot = root.replace(/\\/g, '/');
+  if (!nAbs.startsWith(nRoot + '/') && nAbs !== nRoot) {
     return send(res, 400, { 'content-type': 'text/plain' }, 'bad path');
   }
   const ext = extname(abs).toLowerCase();
@@ -151,10 +168,13 @@ export async function handle(req, res, { store, publicDir }) {
 export function createReplayServer({ store, publicDir, host = '127.0.0.1', port = 9090 } = {}) {
   if (!store) throw new TypeError('store required');
   if (!publicDir) throw new TypeError('publicDir required');
+  // follow-loop exit registrations; fired on server close so no SSE handler
+  // strands a pending timer and keeps the event loop alive.
+  const closeHooks = new Set();
   const server = createServer((req, res) => {
     // guard against slowloris-style stalls
     req.socket.setTimeout(60_000);
-    handle(req, res, { store, publicDir }).catch((err) => {
+    handle(req, res, { store, publicDir, closeHooks }).catch((err) => {
       if (!res.headersSent) json(res, 500, { error: err?.message ?? String(err) });
       else try { res.end(); } catch {}
     });
@@ -170,7 +190,10 @@ export function createReplayServer({ store, publicDir, host = '127.0.0.1', port 
       });
     },
     close() {
-      return new Promise((resolveFn, reject) => server.close((e) => e ? reject(e) : resolveFn()));
+      return new Promise((resolveFn, reject) => {
+        for (const fn of closeHooks) { try { fn(); } catch {} }
+        server.close((e) => e ? reject(e) : resolveFn());
+      });
     },
   };
 }

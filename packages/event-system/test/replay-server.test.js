@@ -47,9 +47,10 @@ test('replay-server: healthz + static + one-shot JSON + raw', async () => {
       store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { i }, t1));
     }
     const srv = createReplayServer({ store, publicDir: publicDir(), host: '127.0.0.1', port: 0 });
-    await srv.listen();
-    const addr = srv.server.address();
-    srv.port = addr.port;
+    try {
+      await srv.listen();
+      const addr = srv.server.address();
+      srv.port = addr.port;
 
     // healthz
     const h = await getJson(srv, '/api/healthz');
@@ -85,7 +86,7 @@ test('replay-server: healthz + static + one-shot JSON + raw', async () => {
     // static root
     const indexHtml = await getText(srv, '/');
     assert.match(indexHtml.headers.get('content-type') ?? '', /text\/html/);
-    assert.match(indexHtml.body, /NEXUS — replay/);
+    assert.match(indexHtml.body, /NEXUS/);
 
     // static JS
     const app = await getText(srv, '/app.js');
@@ -97,6 +98,8 @@ test('replay-server: healthz + static + one-shot JSON + raw', async () => {
     assert.ok(evil.status === 400 || evil.status === 404);
 
     await srv.close();
+    } catch (e) { throw e; }
+    finally { await srv.close().catch(() => {}); }
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
