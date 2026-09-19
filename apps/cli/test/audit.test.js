@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AuditChain } from '@nexus/audit';
+import { AuditChain, verify } from '../../../packages/audit/src/chain.js';
 import { runAudit } from '../src/audit.js';
 
 function tmp() {

@@ -5,6 +5,7 @@ import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
+import { installGracefulShutdown as installCliGraceful } from './graceful.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
@@ -150,6 +151,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         }
       } catch { /* ignore */ }
       const srv = createReplayServer({ store, publicDir, host: String(hostFlag), port });
+      let shutdown;
       try {
         await srv.listen();
         const url = `http://${srv.host}:${srv.port}/`;
@@ -166,8 +168,13 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
             spawn(opener, [url], { stdio: 'ignore', detached: true }).unref();
           } catch { /* best-effort */ }
         }
-        await new Promise(() => {}); // run until SIGINT
+        // SIGTERM/SIGINT -> close replay server + store cleanly
+        shutdown = installCliGraceful({
+          onClose: async () => { try { await srv.close(); } catch {} try { await store.close(); } catch {} },
+        });
+        await new Promise(() => {}); // run until SIGINT/SIGTERM
       } finally {
+        if (shutdown) shutdown.uninstall();
         try { await srv.close(); } catch {}
         try { await store.close(); } catch {}
       }
