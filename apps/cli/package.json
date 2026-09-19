@@ -47,6 +47,6 @@
     "@nexus/shared": "*"
   },
   "devDependencies": {
-    "@nexus/audit": "file:../../packages/audit"
+    "@nexus/audit": "*"
   }
 }
