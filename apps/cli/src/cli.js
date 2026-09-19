@@ -67,6 +67,26 @@ function readFlags(flags, ...keys) {
   return undefined;
 }
 
+/** Stable machine id for license activation (best-effort, no deps). */
+async function machineId() {
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const out = process.platform === 'darwin'
+      ? execFileSync('ioreg', ['-rd1', '-c', 'IOPlatformExpertDevice'], { encoding: 'utf8' })
+      : process.platform === 'win32'
+        ? execFileSync('wmic', ['csproduct', 'get', 'UUID'], { encoding: 'utf8' })
+        : execFileSync('cat', ['/etc/machine-id'], { encoding: 'utf8' }).trim();
+    if (process.platform === 'darwin') {
+      const m = out.match(/IOPlatformUUID.*"?([0-9A-Fa-f-]{36})/);
+      return m ? m[1] : 'darwin';
+    }
+    if (process.platform === 'win32') return out.trim();
+    return out.trim() || 'linux';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** Run the CLI. Returns 0 on success, non-zero on error. */
 export async function runNexusCli(argv, env = process.env, stdout = console.log, stderr = console.error) {
   let args;
@@ -223,6 +243,52 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       stderr('events compact failed: ' + e.message);
       return 1;
     }
+  }
+
+  if (args.cmd === 'license') {
+    // nexus license activate <key> [--device=N] [--base=URL]
+    // nexus license verify <key> [--base=URL]
+    // nexus license issue <tier> [--admin=TOKEN] [--base=URL]
+    const sub = args.task.split(' ').filter(Boolean)[0];
+    const rest = args.task.split(' ').slice(1).filter(Boolean);
+    const baseUrl = args.flags.base ?? args.flags['base-url'] ?? process.env.LICENSE_BASE ?? 'http://127.0.0.1:8486';
+    const device = args.flags.device ?? args.flags['host-id'] ?? (await machineId()) ?? 'unknown';
+    const admin = args.flags.admin ?? process.env.LICENSE_ADMIN_SECRET;
+
+    const bodyFor = (obj) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+
+    try {
+      if (sub === 'activate') {
+        const key = rest[0];
+        if (!key) { stderr('license activate: <key> required'); return 2; }
+        const r = await fetch(baseUrl + '/v1/keys/activate', bodyFor({ key, device })).then((x) => x.json());
+        if (!r.ok) { stderr('activate failed: ' + (r.reason || r.error)); return 1; }
+        stdout(`activated: ${r.key} (${r.tier}) on ${r.device}`);
+        return 0;
+      }
+      if (sub === 'verify') {
+        const key = rest[0];
+        if (!key) { stderr('license verify: <key> required'); return 2; }
+        const r = await fetch(baseUrl + '/v1/keys/verify', bodyFor({ key, device })).then((x) => x.json());
+        if (!r.ok) { stderr('verify failed: ' + (r.reason || r.error)); return 1; }
+        stdout(`key ${r.key}: tier=${r.tier} activated=${r.activated}`);
+        return 0;
+      }
+      if (sub === 'issue') {
+        const tier = rest[0] ?? 'pro';
+        if (!admin) { stderr('license issue: --admin=TOKEN required'); return 2; }
+        const h = { 'Content-Type': 'application/json', 'x-license-admin': admin };
+        const r = await fetch(baseUrl + '/v1/keys/issue', { method: 'POST', headers: h, body: JSON.stringify({ tier, count: 1 }) }).then((x) => x.json());
+        if (!r.ok) { stderr('issue failed: ' + (r.error || r.reason)); return 1; }
+        stdout(r.keys[0].key);
+        return 0;
+      }
+    } catch (e) {
+      stderr('license: ' + e.message);
+      return 1;
+    }
+    stderr('license: unknown subcommand (activate|verify|issue)');
+    return 2;
   }
 
   if (args.cmd === 'tasks') {
