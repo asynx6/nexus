@@ -5,6 +5,7 @@ import { buildRunCtx, buildReplayCtx } from './ctx.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
+import { installGracefulShutdown as installCliGraceful } from './graceful.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
@@ -18,6 +19,9 @@ Usage:
                                                           --follow tails live events (poll default 1s)
   nexus replay --port N [--host=H] [--no-open]           serve browser-based event timeline UI on :N
                                                           (open http://H:N/ in a browser)
+  nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
+                                                          rewrites JSONL + sqlite index atomically. Optional --store
+                                                          overrides the default event store path.
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
@@ -62,6 +66,26 @@ function readFlags(flags, ...keys) {
     return Number.isFinite(n) ? n : v;
   }
   return undefined;
+}
+
+/** Stable machine id for license activation (best-effort, no deps). */
+async function machineId() {
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const out = process.platform === 'darwin'
+      ? execFileSync('ioreg', ['-rd1', '-c', 'IOPlatformExpertDevice'], { encoding: 'utf8' })
+      : process.platform === 'win32'
+        ? execFileSync('wmic', ['csproduct', 'get', 'UUID'], { encoding: 'utf8' })
+        : execFileSync('cat', ['/etc/machine-id'], { encoding: 'utf8' }).trim();
+    if (process.platform === 'darwin') {
+      const m = out.match(/IOPlatformUUID.*"?([0-9A-Fa-f-]{36})/);
+      return m ? m[1] : 'darwin';
+    }
+    if (process.platform === 'win32') return out.trim();
+    return out.trim() || 'linux';
+  } catch {
+    return 'unknown';
+  }
 }
 
 /** Run the CLI. Returns 0 on success, non-zero on error. */
@@ -147,6 +171,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         }
       } catch { /* ignore */ }
       const srv = createReplayServer({ store, publicDir, host: String(hostFlag), port });
+      let shutdown;
       try {
         await srv.listen();
         const url = `http://${srv.host}:${srv.port}/`;
@@ -163,8 +188,13 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
             spawn(opener, [url], { stdio: 'ignore', detached: true }).unref();
           } catch { /* best-effort */ }
         }
-        await new Promise(() => {}); // run until SIGINT
+        // SIGTERM/SIGINT -> close replay server + store cleanly
+        shutdown = installCliGraceful({
+          onClose: async () => { try { await srv.close(); } catch {} try { await store.close(); } catch {} },
+        });
+        await new Promise(() => {}); // run until SIGINT/SIGTERM
       } finally {
+        if (shutdown) shutdown.uninstall();
         try { await srv.close(); } catch {}
         try { await store.close(); } catch {}
       }
@@ -188,6 +218,84 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       }
       return 0;
     } finally { await store.close(); }
+  }
+
+  if (args.cmd === 'events' && args.task === 'compact') {
+    // nexus events compact [--keep-recent=N] [--store=PATH]
+    const keepRecent = Number(args.flags['keep-recent'] ?? args.flags.keepRecent ?? 1000);
+    if (!Number.isFinite(keepRecent) || keepRecent < 1) {
+      stderr('events compact: --keep-recent must be a positive integer');
+      return 2;
+    }
+    const storePath = args.flags.store;
+    const { compact } = await import('@nexus/event-system');
+    const { buildReplayCtx } = await import('./ctx.js');
+    const ctx = storePath
+      ? { store: { open: async () => new (await import('@nexus/event-system')).EventStore(storePath) } }
+      : buildReplayCtx();
+    const store = await ctx.store.open();
+    let result;
+    try {
+      const before = store.count();
+      result = compact(store, { keepRecent });
+      // store was closed by compact(); reopen to report after-state
+      const reopened = await ctx.store.open();
+      try {
+        const after = reopened.count();
+        stdout(`compact: ${before} → ${after} events (dropped ${result.dropped}, kept ${result.kept})`);
+        stdout(`store: ${reopened.jsonlPath}`);
+      } finally { reopened.close(); }
+      return 0;
+    } catch (e) {
+      stderr('events compact failed: ' + e.message);
+      return 1;
+    }
+  }
+
+  if (args.cmd === 'license') {
+    // nexus license activate <key> [--device=N] [--base=URL]
+    // nexus license verify <key> [--base=URL]
+    // nexus license issue <tier> [--admin=TOKEN] [--base=URL]
+    const sub = args.task.split(' ').filter(Boolean)[0];
+    const rest = args.task.split(' ').slice(1).filter(Boolean);
+    const baseUrl = args.flags.base ?? args.flags['base-url'] ?? process.env.LICENSE_BASE ?? 'http://127.0.0.1:8486';
+    const device = args.flags.device ?? args.flags['host-id'] ?? (await machineId()) ?? 'unknown';
+    const admin = args.flags.admin ?? process.env.LICENSE_ADMIN_SECRET;
+
+    const bodyFor = (obj) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+
+    try {
+      if (sub === 'activate') {
+        const key = rest[0];
+        if (!key) { stderr('license activate: <key> required'); return 2; }
+        const r = await fetch(baseUrl + '/v1/keys/activate', bodyFor({ key, device })).then((x) => x.json());
+        if (!r.ok) { stderr('activate failed: ' + (r.reason || r.error)); return 1; }
+        stdout(`activated: ${r.key} (${r.tier}) on ${r.device}`);
+        return 0;
+      }
+      if (sub === 'verify') {
+        const key = rest[0];
+        if (!key) { stderr('license verify: <key> required'); return 2; }
+        const r = await fetch(baseUrl + '/v1/keys/verify', bodyFor({ key, device })).then((x) => x.json());
+        if (!r.ok) { stderr('verify failed: ' + (r.reason || r.error)); return 1; }
+        stdout(`key ${r.key}: tier=${r.tier} activated=${r.activated}`);
+        return 0;
+      }
+      if (sub === 'issue') {
+        const tier = rest[0] ?? 'pro';
+        if (!admin) { stderr('license issue: --admin=TOKEN required'); return 2; }
+        const h = { 'Content-Type': 'application/json', 'x-license-admin': admin };
+        const r = await fetch(baseUrl + '/v1/keys/issue', { method: 'POST', headers: h, body: JSON.stringify({ tier, count: 1 }) }).then((x) => x.json());
+        if (!r.ok) { stderr('issue failed: ' + (r.error || r.reason)); return 1; }
+        stdout(r.keys[0].key);
+        return 0;
+      }
+    } catch (e) {
+      stderr('license: ' + e.message);
+      return 1;
+    }
+    stderr('license: unknown subcommand (activate|verify|issue)');
+    return 2;
   }
 
   if (args.cmd === 'tasks') {

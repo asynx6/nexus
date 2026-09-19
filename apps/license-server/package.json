@@ -1,0 +1,19 @@
+{
+  "name": "@nexus/license-server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "self-hosted license server (tier free/pro/enterprise) with key activation + verification over HTTP",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@nexus/shared": "*",
+    "@nexus/security": "*"
+  }
+}
