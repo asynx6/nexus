@@ -1,14 +1,16 @@
-// @nexus/cli dispatcher — parses argv, dispatches to subcommands.
+// ../vendor/cli/index.js dispatcher — parses argv, dispatches to subcommands.
 // Zero deps. Returns exit code.
 
 import { buildRunCtx, buildReplayCtx } from './ctx.js';
+import { loadEnv } from '../vendor/shared/index.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
+import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs } from './init.js';
 import { installGracefulShutdown as installCliGraceful } from './graceful.js';
-import { makeEvent } from '@nexus/event-system';
-import { newAgentId, newTaskId } from '@nexus/shared';
-import { createReplayServer } from '@nexus/event-system/replay-server.js';
+import { makeEvent } from '../vendor/event-system/index.js';
+import { newAgentId, newTaskId } from '../vendor/shared/index.js';
+import { createReplayServer } from '../vendor/event-system/replay-server.js';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,6 +26,7 @@ Usage:
                                                           overrides the default event store path.
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
+  nexus setup                                             interactive gateway config wizard (base URL, API key, model) — writes .env-gateway
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
@@ -90,6 +93,9 @@ async function machineId() {
 
 /** Run the CLI. Returns 0 on success, non-zero on error. */
 export async function runNexusCli(argv, env = process.env, stdout = console.log, stderr = console.error) {
+  // Gateway secrets live in .env-gateway; load once per CLI invocation.
+  // loadEnv never overrides explicit process.env, and never returns values.
+  loadEnv('.env-gateway');
   let args;
   try { args = parseArgs(argv); }
   catch (e) { stderr('parse: ' + e.message); return 2; }
@@ -116,6 +122,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       return result.actions.every((a) => a.ok) ? 0 : 1;
     }
     return await runDoctor({ env, stdout, stderr });
+  }
+
+  if (args.cmd === 'setup') {
+    return await runSetup(argv.slice(1), { stdout, stderr });
   }
 
   if (args.cmd === 'init') {
@@ -228,10 +238,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       return 2;
     }
     const storePath = args.flags.store;
-    const { compact } = await import('@nexus/event-system');
+    const { compact } = await import('../vendor/event-system/index.js');
     const { buildReplayCtx } = await import('./ctx.js');
     const ctx = storePath
-      ? { store: { open: async () => new (await import('@nexus/event-system')).EventStore(storePath) } }
+      ? { store: { open: async () => new (await import('../vendor/event-system/index.js')).EventStore(storePath) } }
       : buildReplayCtx();
     const store = await ctx.store.open();
     let result;

@@ -1,18 +1,21 @@
-// @nexus/cli ctx builder — wire shared+events+tools+security+provider+loop
-// Keeps imports DOWN-only (no other package imports @nexus/cli).
+// ../vendor/cli/index.js ctx builder — wire shared+events+tools+security+provider+loop
+// Keeps imports DOWN-only (no other package imports ../vendor/cli/index.js).
 // Zero external deps. Node ≥22 ESM.
 
-import { loadEnv, makeLogger } from '@nexus/shared';
-import { EventBus, EventStore, makeEvent } from '@nexus/event-system';
-import { ModelProvider } from '@nexus/model-providers';
-import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '@nexus/tool-system';
-import { PermissionManager, AuditTrail } from '@nexus/security';
-import { AgentLoop, loopTools } from '@nexus/agent-runtime';
+import { loadEnv, makeLogger } from '../vendor/shared/index.js';
+import { EventBus, EventStore, makeEvent } from '../vendor/event-system/index.js';
+import { ModelProvider } from '../vendor/model-providers/index.js';
+import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '../vendor/tool-system/index.js';
+import { PermissionManager, AuditTrail } from '../vendor/security/index.js';
+import { AgentLoop, loopTools } from '../vendor/agent-runtime/index.js';
 
 /** Build a reusable run context: provider + tools + loop + event bus + store.
  *  Env-driven config (NEXUS_GATEWAY_*) — no secrets in code. */
 export function buildRunCtx(opts = {}) {
-  const env = loadEnv();
+  // loadEnv populates process.env without leaking values; read them back.
+  // Gateway secrets live in .env-gateway (setup wizard target), not .env.
+  loadEnv('.env-gateway');
+  const env = process.env;
   const log = opts.log ?? makeLogger('cli');
 
   const bus = new EventBus();
