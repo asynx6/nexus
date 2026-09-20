@@ -11,9 +11,8 @@
     "index.js",
     "src/",
     "bin.mjs",
-    "README.md",
-    "../event-system/replay-server.js",
-    "../event-system/public/"
+    "vendor/",
+    "README.md"
   ],
   "exports": {
     ".": "./index.js",
@@ -37,16 +36,6 @@
   "scripts": {
     "test": "node --test"
   },
-  "dependencies": {
-    "@nexus/sandbox-runtime": "*",
-    "@nexus/model-providers": "*",
-    "@nexus/agent-runtime": "*",
-    "@nexus/tool-system": "*",
-    "@nexus/security": "*",
-    "@nexus/event-system": "*",
-    "@nexus/shared": "*"
-  },
-  "devDependencies": {
-    "@nexus/audit": "*"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }

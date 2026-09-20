@@ -5,3 +5,4 @@ sandbox-work/
 .env
 .env-gateway
 .DS_Store
+apps/cli/vendor/

@@ -1,4 +1,6 @@
 # Auto-publish @asynx6/nexus-cli to npm on tag v*.
+# Bundles all @nexus/* workspace packages into apps/cli/vendor so the
+# published tarball is self-contained (the workspace packages are private).
 name: Publish @asynx6/nexus-cli
 on:
   push:
@@ -7,9 +9,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-22.04
-    defaults:
-      run:
-        working-directory: apps/cli
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,10 +19,11 @@ jobs:
           node-version: 22.x
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
-      - name: Generate lockfile
-        run: npm install
+      - name: Bundle workspace deps into vendor/
+        run: node scripts/bundle-cli.mjs
       - name: Publish to npm
         run: npm publish --access public
+        working-directory: apps/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Success
