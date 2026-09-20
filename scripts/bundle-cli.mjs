@@ -1,6 +1,6 @@
 // Bundle workspace deps into apps/cli/vendor so the published tarball is self-contained.
 // Run before publish. Zero-dep: plain node fs/path/glob-less (explicit file lists).
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,42 +27,12 @@ for (const name of PKGS) {
   console.log(`vendored ${name}`);
 }
 
-// Rewrite @nexus/<pkg> specifiers -> relative ./vendor/<pkg> in CLI sources.
-// Only touch first-level (package name) imports; keep subpath exports intact.
-const cliJs = ['index.js', 'bin.mjs', 'src'];
-function rewriteDir(dir) {
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, ent.name);
-    if (ent.isDirectory()) { rewriteDir(p); continue; }
-    if (!/\.(mjs|js)$/.test(ent.name)) continue;
-    let txt = readFileSync(p, 'utf8');
-    const before = txt;
-    txt = txt.replace(/@nexus\/([a-z-]+)(\/[^\s'"`]*)?/g, (m, pkg, sub) => {
-      // Relative path from this file to apps/cli/vendor/<pkg>.
-      // posix relative from file dir to cli root, then vendor/<pkg>.
-      const fileDir = dirname(p).replace(/\\/g, '/');
-      const cliPosix = cli.replace(/\\/g, '/');
-      const rel = fileDir.startsWith(cliPosix) ? fileDir.slice(cliPosix.length + 1) : '';
-      const depth = rel ? rel.split('/').length : 0;
-      const ups = depth === 0 ? './' : '../'.repeat(depth);
-      // ESM filesystem resolution needs explicit /index.js (no exports map).
-      return ups + 'vendor/' + pkg + (sub || '/index.js');
-    });
-    if (txt !== before) { writeFileSync(p, txt); console.log(`rewrote imports in ${p.replace(cli, '')}`); }
-  }
-}
-for (const d of cliJs) {
-  const full = join(cli, d);
-  if (existsSync(full) && statSync(full).isDirectory()) rewriteDir(full);
-  else if (existsSync(full) && /\.(mjs|js)$/.test(full)) {
-    let txt = readFileSync(full, 'utf8');
-    const before = txt;
-    txt = txt.replace(/@nexus\/([a-z-]+)/g, (m, pkg) => `./vendor/${pkg}`);
-    if (txt !== before) { writeFileSync(full, txt); console.log(`rewrote imports in ${d}`); }
-  }
-}
+// Rewrite @nexus/<pkg> import specifiers inside the vendor copy only.
+// Source-tree files (apps/cli/**) keep their @nexus/* specifiers so the repo
+// itself stays testable — apps/cli/node_modules/@nexus/* symlinks to packages/*.
+const SPEC_RE = /((?:^|\n)(?:import|export)[^\n]*?\bfrom\s*|(?:^|\n)import\s*)(['"])@nexus\/([a-z-]+)(\/[^\s'"]*)?/g;
 
-// Also rewrite inside vendor packages themselves (they import each other).
+// Vendor packages import each other by relative paths (no @nexus/* left behind).
 function rewriteVendor(dir) {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, ent.name);
@@ -70,7 +40,7 @@ function rewriteVendor(dir) {
     if (!/\.(mjs|js)$/.test(ent.name)) continue;
     let txt = readFileSync(p, 'utf8');
     const before = txt;
-    txt = txt.replace(/@nexus\/([a-z-]+)(\/[^\s'"`]*)?/g, (m, pkg, sub) => {
+    txt = txt.replace(SPEC_RE, (m, prefix, q, pkg, sub) => {
       // Relative from this vendor pkg file to sibling vendor pkg.
       // File dir -> up to vendor root -> into sibling pkg.
       const fileDir = dirname(p).replace(/\\/g, '/');
@@ -79,11 +49,27 @@ function rewriteVendor(dir) {
       // rel like "event-system/src" → depth = 2 → "../../shared"
       const depth = rel ? rel.split('/').length : 0;
       const ups = '../'.repeat(depth);
-      return ups + pkg + (sub || '/index.js');
+      return prefix + q + ups + pkg + (sub || '/index.js');
     });
-    if (txt !== before) { writeFileSync(p, txt); }
+    if (txt !== before) { writeFileSync(p, txt); console.log(`rewrote vendor imports in ${p.replace(vendor, '')}`); }
   }
 }
 rewriteVendor(vendor);
+
+// Make the CLI work from the source tree without a publish step:
+// apps/cli/node_modules/@nexus/<pkg> -> packages/<pkg>. Node resolves these
+// before walking up to the repo root, so `npm test` runs against real packages.
+const nm = join(cli, 'node_modules');
+const scopeDir = join(nm, '@nexus');
+mkdirSync(scopeDir, { recursive: true });
+for (const name of PKGS) {
+  const link = join(scopeDir, name);
+  const target = join(root, 'packages', name);
+  if (!existsSync(target)) continue;
+  rmSync(link, { recursive: true, force: true });
+  try {
+    symlinkSync(target, link, 'dir');
+  } catch { /* non-fatal: fallback handled below */ }
+}
 
 console.log('\nDONE. Verify with: cd apps/cli && node bin.mjs --version');

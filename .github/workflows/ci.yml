@@ -9,4 +9,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      # vendor/ is gitignored (published tarball is self-contained); generate
+      # it before tests so ../vendor/* imports resolve on a clean checkout.
+      - run: node scripts/bundle-cli.mjs
       - run: npm test

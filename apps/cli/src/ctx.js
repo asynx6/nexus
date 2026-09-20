@@ -9,6 +9,8 @@ import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '../vendor/to
 import { PermissionManager, AuditTrail } from '../vendor/security/index.js';
 import { AgentLoop, loopTools } from '../vendor/agent-runtime/index.js';
 
+export { AgentLoop };
+
 /** Build a reusable run context: provider + tools + loop + event bus + store.
  *  Env-driven config (NEXUS_GATEWAY_*) — no secrets in code. */
 export function buildRunCtx(opts = {}) {
