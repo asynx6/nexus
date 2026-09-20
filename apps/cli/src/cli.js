@@ -1,17 +1,17 @@
 // ../vendor/cli/index.js dispatcher — parses argv, dispatches to subcommands.
 // Zero deps. Returns exit code.
 
-import { buildRunCtx, buildReplayCtx } from './ctx.js';
+import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
 import { loadEnv } from '../vendor/shared/index.js';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
-import { scaffoldProject, parseInitArgs } from './init.js';
+import { scaffoldProject, parseInitArgs, promptInitAnswers } from './init.js';
 import { installGracefulShutdown as installCliGraceful } from './graceful.js';
 import { makeEvent } from '../vendor/event-system/index.js';
 import { newAgentId, newTaskId } from '../vendor/shared/index.js';
 import { createReplayServer } from '../vendor/event-system/replay-server.js';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HELP = `nexus — AI Agent Operating Environment
@@ -43,7 +43,7 @@ Subcommand shortcuts:
 
 /** Parse argv into {cmd, task, flags}. Minimal: handles --key=value, --flag value, positional. */
 export function parseArgs(argv) {
-  const out = { cmd: 'help', task: '', flags: {} };
+  const out = { cmd: 'help', task: '', flags: {}, argvEmpty: argv.length === 0 };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -54,9 +54,14 @@ export function parseArgs(argv) {
       else out.flags[a.slice(2)] = true;
     } else positional.push(a);
   }
+  out.helpFlag = out.flags.help === true || out.flags.h === true;
   if (positional.length) {
     out.cmd = positional[0];
     out.task = positional.slice(1).join(' ');
+  } else if (argv.length) {
+    // only flags, no positional: --help/-h show help, anything else is unknown.
+    out.cmd = out.helpFlag ? 'help' : 'unknown';
+    out.unknownArg = argv[0];
   }
   return out;
 }
@@ -100,18 +105,47 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
   try { args = parseArgs(argv); }
   catch (e) { stderr('parse: ' + e.message); return 2; }
 
-  if (args.cmd === 'help' || args.cmd === '--help' || args.cmd === '-h') {
-    stdout(HELP);
-    return 0;
+  if (args.cmd === 'help' || args.cmd === 'unknown') {
+    const isHelp = args.cmd === 'help' || args.helpFlag;
+    if (isHelp) {
+      stdout(HELP);
+      return args.argvEmpty ? 2 : 0;
+    }
+    stderr(`unknown command: ${args.unknownArg}`);
+    stderr(HELP);
+    return 2;
   }
 
   if (args.cmd === 'healthz') {
     try {
-      const base = env.NEXUS_GATEWAY_BASE ?? 'https://api.asynx6.tech/v1';
-      const r = await fetch(base.replace(/\/v1$/, '') + '/healthz', { signal: AbortSignal.timeout(5000) }).catch(() => null);
-      stdout(`gateway reachable: ${r ? 'yes' : 'unknown'}`);
-      stdout(`base: ${base}`);
-      stdout(`models: ${env.NEXUS_GATEWAY_MODELS ?? 'hermes-agent'}`);
+      const base = (env.NEXUS_GATEWAY_BASE ?? 'https://api.asynx6.tech/v1').replace(/\/+$/, '');
+      const key = env.NEXUS_GATEWAY_KEY;
+      const headers = key ? { Authorization: `Bearer ${key}` } : {};
+      const report = (reachable, extra) => {
+        stdout(`gateway reachable: ${reachable}${extra ? ` (${extra})` : ''}`);
+        stdout(`base: ${base}`);
+        stdout(`models: ${env.NEXUS_GATEWAY_MODELS ?? 'hermes-agent'}`);
+      };
+      // The gateway has no /healthz and its /v1/models can stall for tens of
+      // seconds, so probe with a 1-token chat completion instead: it is the
+      // actual workload path and answers in ~2s.
+      const body = JSON.stringify({ model: 'hermes-agent', messages: [{ role: 'user', content: 'ok' }], max_tokens: 1 });
+      const r = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(env.NEXUS_HEALTHZ_TIMEOUT_MS ?? 15_000),
+      }).catch(() => null);
+      if (!r) { report('unknown (request failed or timed out)'); return 1; }
+      if (r.status === 401 || r.status === 403) {
+        report('yes, auth: REJECTED', `HTTP ${r.status} — check NEXUS_GATEWAY_KEY`);
+        return 1;
+      }
+      if (!r.ok) { report('yes, unhealthy', `HTTP ${r.status}`); return 1; }
+      const list = await r.json().catch(() => null);
+      const got = list?.model ?? list?.id;
+      report('yes', `HTTP ${r.status}`);
+      if (got) stdout(`served by: ${got}`);
       return 0;
     } catch (e) { stderr('healthz: ' + e.message); return 1; }
   }
@@ -119,7 +153,9 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
   if (args.cmd === 'doctor') {
     if (args.flags.fix) {
       const result = await runDoctorFix({ stdout, stderr });
-      return result.actions.every((a) => a.ok) ? 0 : 1;
+      // `true` only when nothing changed AND the gateway key is usable.
+      const allOk = result.actions.every((a) => a.ok) && !result.keyUnusable;
+      return allOk ? 0 : 1;
     }
     return await runDoctor({ env, stdout, stderr });
   }
@@ -167,17 +203,18 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       if (!Number.isFinite(port) || port <= 0 || port > 65535) { stderr('replay: --port must be 1..65535'); return 2; }
       const ctx = buildReplayCtx();
       const store = await ctx.store.open();
-      // resolve packages/event-system/public regardless of CWD: replay-server
+      // resolve the event-system public dir regardless of CWD: replay-server
       // is shipped inside the installed package, so we go up from this file.
       const here = dirname(fileURLToPath(import.meta.url));
-      // here = apps/cli/src; publicDir = ../../packages/event-system/public
-      // Walk up until we find a sibling packages/event-system/public; fall back to relative.
-      let publicDir = resolve(here, '..', '..', '..', 'packages', 'event-system', 'public');
-      // Soft fallback: CWD-relative path for source-tree runs.
+      // here = <pkg>/src; the tarball ships the UI at <pkg>/vendor/event-system/public
+      // (source-tree layout has packages/, the published bundle has vendor/).
+      // Try the installed layout first, then the source-tree layout for repo runs.
+      let publicDir = resolve(here, '..', 'vendor', 'event-system', 'public');
       try {
         const fs = await import('node:fs');
         if (!fs.existsSync(publicDir)) {
-          publicDir = resolve(process.cwd(), 'packages', 'event-system', 'public');
+          const sourceDir = resolve(here, '..', '..', '..', 'packages', 'event-system', 'public');
+          publicDir = fs.existsSync(sourceDir) ? sourceDir : resolve(process.cwd(), 'packages', 'event-system', 'public');
         }
       } catch { /* ignore */ }
       const srv = createReplayServer({ store, publicDir, host: String(hostFlag), port });
@@ -218,12 +255,17 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     const interval = Number(args.flags.interval ?? 1000);
     try {
       let cursor = since;
+      let got = false;
       for (;;) {
         for await (const env of store.replay({ subject, since: cursor })) {
           stdout(JSON.stringify(env));
           cursor = (env.seq ?? 0) + 1;
+          got = true;
         }
-        if (!follow) break;
+        if (!follow) {
+          if (!got) stdout(subject ? `no events for subject ${subject} in store` : 'no events in store yet');
+          break;
+        }
         await new Promise((r) => setTimeout(r, interval));
       }
       return 0;
@@ -317,6 +359,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         seen.set(e.subject, e.ts);
       }
       for (const [s, ts] of seen) stdout(ts, s);
+      if (seen.size === 0) stdout('no tasks recorded yet (run: nexus run "task text")');
       return 0;
     } finally { await store.close(); }
   }
@@ -347,10 +390,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         maxSteps,
         system: 'You are a NEXUS agent. Work strictly inside the current working directory; refuse to access /workspace or absolute paths unless explicitly granted. Be concise.',
       });
-      const ended = makeEvent('task.ended', { taskId, agentId, ok: true, summary: result?.content?.slice(0, 500) }, taskId);
+      const ended = makeEvent('task.ended', { taskId, agentId, ok: true, summary: result?.answer?.slice(0, 500) }, taskId);
       await ctx.store.append(ended);
       stdout('--- task done ---');
-      stdout(result?.content ?? '(no content)');
+      stdout(result?.answer ?? result?.content ?? '(no content)');
       return 0;
     } catch (e) {
       const ended = makeEvent('task.ended', { taskId, agentId, ok: false, error: e.message }, taskId);

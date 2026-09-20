@@ -1,7 +1,7 @@
 // nexus doctor — comprehensive environment health check.
 // Run before first agent invocation to catch setup issues early.
 // Zero deps, stdlib only.
-import { existsSync, statSync, mkdirSync, copyFileSync, chmodSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, mkdirSync, copyFileSync, chmodSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { hostname, platform, arch } from 'node:os';
 import { version as nodeVersion } from 'node:process';
@@ -96,13 +96,22 @@ export async function runDoctor({ env = process.env, stdout = console.log, exec 
  * Returns { actions: [{name, ok, detail}], summary }.
  * Never modifies gateway key contents; never deletes user data.
  */
-export async function runDoctorFix({ cwd = process.cwd(), exec = execFileSync, stdout = console.log, stderr = console.error } = {}) {
+export async function runDoctorFix({ cwd = process.cwd(), exec = execFileSync, env = process.env, stdout = console.log, stderr = console.error } = {}) {
   const actions = [];
   const base = resolve(cwd);
   const envExample = join(base, '.env.example');
   const envFile = join(base, '.env-gateway');
   const pkgJson = join(base, 'package.json');
   const lockFile = join(base, 'package-lock.json');
+
+  // The CLI loads .env-gateway into process.env before dispatching, which would
+  // mask a placeholder key. Read the file itself for the key check instead.
+  let fileKey = env.NEXUS_GATEWAY_KEY ?? '';
+  try {
+    const raw = readFileSync(envFile, 'utf8');
+    const m = raw.match(/^NEXUS_GATEWAY_KEY=(.*)$/m);
+    if (m) fileKey = m[1].trim();
+  } catch { /* missing file is handled below */ }
 
   // 1. Recreate .env-gateway from .env.example when missing
   if (!existsSync(envFile)) {
@@ -152,10 +161,19 @@ export async function runDoctorFix({ cwd = process.cwd(), exec = execFileSync, s
   }
 
   const changed = actions.filter((a) => /created|chmod|regenerated|lockfile/.test(a.detail) && a.ok);
-  const summary = changed.length === 0
+  // loadEnv() has already merged .env-gateway into process.env by now, so a key
+  // that exists but is clearly unusable is what we actually need to catch:
+  // missing, empty, or an obvious placeholder value.
+  const rawKey = fileKey || (env.NEXUS_GATEWAY_KEY ?? '');
+  const PLACEHOLDER = /^(?:sk-dummy|sk-test|test|changeme|your[-_]?key|<.+>|\s*)$/i;
+  const keyUnusable = !rawKey || PLACEHOLDER.test(rawKey);
+  let summary = changed.length === 0
     ? 'nothing to fix — environment already healthy'
     : `${changed.length} change(s): ${changed.map((a) => a.name).join(', ')}`;
+  if (keyUnusable) {
+    summary += ' — WARNING: NEXUS_GATEWAY_KEY missing or placeholder (run: nexus setup)';
+  }
 
   stdout(`\n[fix] ${summary}`);
-  return { actions, summary };
+  return { actions, summary, keyUnusable };
 }
