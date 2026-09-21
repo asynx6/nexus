@@ -1,7 +1,7 @@
 {
   "name": "@asynx6/nexus-cli",
-  "version": "0.3.2",
-  "description": "Open-source AI Agent Operating Environment. Sandboxed tools, replayable events, pluggable memory.",
+  "version": "0.3.3",
+  "description": "Open-source AI Agent Operating Environment CLI: run, replay, tasks, healthz.",
   "repository": {
     "type": "git",
     "url": "https://github.com/asynx6/nexus-cli"
@@ -27,7 +27,6 @@
     ".": "./index.js",
     "./cli": "./src/cli.js"
   },
-  "description": "Open-source AI Agent Operating Environment CLI: run, replay, tasks, healthz.",
   "keywords": [
     "ai",
     "agent",
