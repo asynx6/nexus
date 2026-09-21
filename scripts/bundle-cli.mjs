@@ -50,7 +50,9 @@ for (const name of PKGS) {
 // --- 3. Rewrite @nexus/<pkg> specifiers to relative vendor paths ---
 // Matches import/export-from and bare import statements only, so template
 // literals that legitimately mention @nexus/* (scaffolded project output) stay intact.
-const SPEC_RE = /((?:^|\n)(?:import|export)[^\n]*?\bfrom\s*|(?:^|\n)import\s*)(['"])@nexus\/([a-z-]+)(\/[^\s'"]*)?/g;
+// Matches static import/export-from, bare import, AND dynamic import('...'),
+// so a runtime await import('@nexus/x') in the publish copy resolves too.
+const SPEC_RE = /((?:^|\n)(?:import|export)[^\n]*?\bfrom\s*|(?:^|\n)import\s*|(?:^|\n|[^\w.])\bimport\(\s*)(['"])@nexus\/([a-z-]+)(\/[^\s'"]*)?/g;
 
 // dir: directory to walk; baseDir: what depth is measured from;
 // isVendorBase: true when dir IS vendor/ (sibling refs, no "vendor/" prefix).

@@ -5,7 +5,7 @@
 //      includes the boundary event; seq starts at 0 in EventStore)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runNexusCli } from '../src/cli.js';
@@ -44,12 +44,13 @@ test('cli events compact: drops N-keepRecent and keeps exactly keepRecent', asyn
     assert.strictEqual(code, 0, `unexpected exit: ${err}`);
     assert.match(out, /compact: 10 → 3 events/);
 
-    const check = new EventStore(storePath);
-    try {
-      assert.equal(check.count(), 3, 'store must hold exactly 3 events');
-      assert.deepEqual([...check.replay()].map((e) => e.seq), [1, 2, 3]);
-      assert.deepEqual([...check.replay()].map((e) => e.data.i), [7, 8, 9]);
-    } finally { check.close(); }
+    // Assert on the JSONL directly: opening an EventStore after compact leaves
+    // a Windows file handle on the freshly renamed .idx -> EBUSY on rmSync below.
+    const lines = readFileSync(storePath, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 3, `store must hold exactly 3 events: ${lines}`);
+    const seqs = lines.map((l) => JSON.parse(l).seq);
+    assert.deepEqual(seqs, [1, 2, 3]);
+    assert.deepEqual(lines.map((l) => JSON.parse(l).data.i), [7, 8, 9]);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -67,8 +68,8 @@ test('cli events compact: keep-recent=1 keeps exactly 1', async () => {
     ));
     assert.strictEqual(code, 0, `compact keep-recent=1 failed: ${err}`);
     assert.match(out, /compact: 5 → 1 events/);
-    const check = new EventStore(storePath);
-    try { assert.equal(check.count(), 1); } finally { check.close(); }
+    const lines = readFileSync(storePath, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 1, `store must hold exactly 1 event: ${lines}`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
