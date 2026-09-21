@@ -9,7 +9,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runNexusCli } from '../src/cli.js';
-import { EventStore, makeEvent } from '@nexus/event-system';
+import { EventStore } from '../vendor/event-system/index.js';
+import { makeEvent } from '../vendor/event-system/src/events.js';
 
 function tmp() { return mkdtempSync(join(tmpdir(), 'nexus-compact-cli-')); }
 
