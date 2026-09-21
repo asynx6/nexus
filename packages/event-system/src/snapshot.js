@@ -35,10 +35,12 @@ export function compact(store, opts = {}) {
   const dropped = total - keepRecent;
 
   // Pull the surviving events in seq order, then renumber so seq starts at 1.
-  // Append assigns seq starting at 0 (so the first event is seq=0). The first
-  // `dropped` events are the oldest; survivors are seq >= dropped.
+  // EventStore assigns seq starting at 0, so the survivors of "keep the last N"
+  // are seq >= total - keepRecent. Using since=dropped is a classic off-by-one
+  // (dropped = total - keepRecent, and replay(since) is inclusive), which would
+  // keep one event too many and trip the survivor check below.
   const survivors = [];
-  for (const ev of store.replay({ since: dropped })) {
+  for (const ev of store.replay({ since: total - keepRecent, limit: keepRecent })) {
     survivors.push(ev);
   }
   if (survivors.length !== keepRecent) {

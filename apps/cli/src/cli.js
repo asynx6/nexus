@@ -2,15 +2,15 @@
 // Zero deps. Returns exit code.
 
 import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
-import { loadEnv } from '../vendor/shared/index.js';
+import { loadEnv } from '@nexus/shared';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
 import { scaffoldProject, parseInitArgs, promptInitAnswers } from './init.js';
 import { installGracefulShutdown as installCliGraceful } from './graceful.js';
-import { makeEvent } from '../vendor/event-system/index.js';
-import { newAgentId, newTaskId } from '../vendor/shared/index.js';
-import { createReplayServer } from '../vendor/event-system/replay-server.js';
+import { makeEvent } from '@nexus/event-system';
+import { newAgentId, newTaskId } from '@nexus/shared';
+import { createReplayServer } from '@nexus/event-system/replay-server.js';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -280,18 +280,19 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       return 2;
     }
     const storePath = args.flags.store;
-    const { compact } = await import('../vendor/event-system/index.js');
+    const { compact, EventStore } = await import('@nexus/event-system');
     const { buildReplayCtx } = await import('./ctx.js');
     const ctx = storePath
-      ? { store: { open: async () => new (await import('../vendor/event-system/index.js')).EventStore(storePath) } }
+      ? { store: { open: async () => new EventStore(storePath) } }
       : buildReplayCtx();
     const store = await ctx.store.open();
     let result;
     try {
       const before = store.count();
       result = compact(store, { keepRecent });
-      // store was closed by compact(); reopen to report after-state
-      const reopened = await ctx.store.open();
+      // compact() closed the store above; open a FRESH instance to read the
+      // after-state. A cached handle returns the dead one (EBADF).
+      const reopened = new EventStore(store.jsonlPath);
       try {
         const after = reopened.count();
         stdout(`compact: ${before} → ${after} events (dropped ${result.dropped}, kept ${result.kept})`);

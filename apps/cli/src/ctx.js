@@ -2,12 +2,12 @@
 // Keeps imports DOWN-only (no other package imports ../vendor/cli/index.js).
 // Zero external deps. Node ≥22 ESM.
 
-import { loadEnv, makeLogger } from '../vendor/shared/index.js';
-import { EventBus, EventStore, makeEvent } from '../vendor/event-system/index.js';
-import { ModelProvider } from '../vendor/model-providers/index.js';
-import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '../vendor/tool-system/index.js';
-import { PermissionManager, AuditTrail } from '../vendor/security/index.js';
-import { AgentLoop, loopTools } from '../vendor/agent-runtime/index.js';
+import { loadEnv, makeLogger } from '@nexus/shared';
+import { EventBus, EventStore, makeEvent } from '@nexus/event-system';
+import { ModelProvider } from '@nexus/model-providers';
+import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '@nexus/tool-system';
+import { PermissionManager, AuditTrail } from '@nexus/security';
+import { AgentLoop, loopTools } from '@nexus/agent-runtime';
 
 export { AgentLoop };
 

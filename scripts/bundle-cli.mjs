@@ -6,7 +6,7 @@
 // Fix: stage a publish copy at apps/cli/_publish/, generate vendor/ inside it,
 // and rewrite every @nexus/* import (vendor cross-imports AND src/* imports)
 // to relative ../vendor/<pkg>/index.js paths. The source tree is left untouched.
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -89,10 +89,10 @@ for (const name of PKGS) {
   const target = join(root, 'packages', name);
   if (!existsSync(target)) continue;
   rmSync(link, { recursive: true, force: true });
-  try { cpSync(target, link, { recursive: true }); }
+  try { symlinkSync(target, link, 'dir'); }
   catch { /* non-fatal */ }
 }
 
-console.log(`\nDONE. Publish copy staged at apps/cli/_publish/`);
+console.log('\nDONE. Verify with: cd apps/cli && node bin.mjs --version');
 console.log('  npm publish from there:  cd apps/cli/_publish && npm publish --access public');
 console.log('  (release.yml does this automatically)');
