@@ -19,11 +19,11 @@ jobs:
           node-version: 22.x
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
-      - name: Bundle workspace deps into vendor/
+      - name: Bundle into publish copy
         run: node scripts/bundle-cli.mjs
       - name: Publish to npm
         run: npm publish --access public
-        working-directory: apps/cli
+        working-directory: apps/cli/_publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Success
