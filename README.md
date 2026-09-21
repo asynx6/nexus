@@ -60,7 +60,7 @@ Requirements:
 - An OpenAI-compatible chat-completions endpoint with a model that supports tool calling
 
 ```sh
-git clone https://github.com/asynx6/nexus
+git clone https://github.com/asynx6/nexus-cli
 cd nexus
 npm install
 cp .env.example .env  # then edit
@@ -105,7 +105,7 @@ The dashboard shows live events from any active run, the per-run event count, an
 1. Fork and branch from `main`. Branch name: `feat/<scope>` or `fix/<scope>`.
 2. Read `docs/plan-nexus.md` and `docs/ARCHITECTURE.md` first. The architecture rules are not optional.
 3. Write a failing test before the fix. Run `npm test` until green.
-4. Open a PR against `asynx6/nexus:main`. The PR description must cite the relevant task in `docs/TASKS.md`.
+4. Open a PR against `asynx6/nexus-cli:main`. The PR description must cite the relevant task in `docs/TASKS.md`.
 5. Only `asynx6` merges to `main`. Expect a review pass; expect to be asked to tighten something.
 
 Code conventions:
@@ -132,7 +132,7 @@ In flight for **v0.3.0** (Autonomy Sprint, 2026-09-18+):
 | G | Scale + reliability | cluster mode, event snapshot, graceful shutdown, k8s health probes |
 | H | Monetization-ready | license server, opt-in telemetry, plugin marketplace, hosted NEXUS |
 
-See `docs/TASKS.md` for the live board and `docs/plan-nexus.md` for the full roadmap. Track milestone progress at https://github.com/asynx6/nexus/milestone/1.
+See `docs/TASKS.md` for the live board and `docs/plan-nexus.md` for the full roadmap. Track milestone progress at https://github.com/asynx6/nexus-cli/milestone/1.
 
 ## License
 

@@ -10,7 +10,7 @@ Copy the template into your consuming repo:
 
 ```bash
 mkdir -p .github/workflows
-curl -L https://raw.githubusercontent.com/asynx6/nexus/main/.github/templates/nexus-bot.yml \
+curl -L https://raw.githubusercontent.com/asynx6/nexus-cli/main/.github/templates/nexus-bot.yml \
   -o .github/workflows/nexus-bot.yml
 git add .github/workflows/nexus-bot.yml
 git commit -m "ci: add nexus-bot workflow"
