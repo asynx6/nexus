@@ -124,3 +124,29 @@ test('gateway replies SSE to non-stream call -> aggregated content', async () =>
   assert.strictEqual(r.model, 'm');
   globalThis.fetch = undefined;
 });
+
+
+test('MiniBucket throttles beyond burst', async () => {
+  const { MiniBucket } = await import('../src/provider.js');
+  const b = new MiniBucket({ rpm: 60, burst: 1 }); // ~1 token/s
+  assert.equal(b.waitMs(), 0, 'first token is free');
+  b.consume();
+  const w = b.waitMs();
+  assert.ok(w >= 900 && w <= 1100, `second call must wait ~1000ms, got ${w}`);
+});
+
+test('rateLimit config is honored by ModelProvider', () => {
+  const p = new ModelProvider({
+    baseUrl: 'http://localhost:1', apiKey: 'k',
+    models: ['m'], rateLimit: { rpm: 10, burst: 2 }
+  });
+  assert.deepEqual(p.models, ['m']);
+});
+
+test('rateLimit default uses rpm as burst', () => {
+  const p = new ModelProvider({
+    baseUrl: 'http://localhost:1', apiKey: 'k',
+    models: ['m'], rateLimit: { rpm: 5 }
+  });
+  assert.deepEqual(p.models, ['m']);
+});

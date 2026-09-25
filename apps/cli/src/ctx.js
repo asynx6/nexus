@@ -30,7 +30,12 @@ export function buildRunCtx(opts = {}) {
   const models = (opts.models ?? env.NEXUS_GATEWAY_MODELS ?? 'hermes-agent')
     .split(',').map((s) => s.trim()).filter(Boolean);
 
-  const provider = new ModelProvider({ baseUrl, apiKey, models, timeoutMs: opts.timeoutMs ?? 120_000 });
+  const provider = new ModelProvider({
+    baseUrl, apiKey, models, timeoutMs: opts.timeoutMs ?? 120_000,
+    rateLimit: opts.rateLimit ?? (env.NEXUS_RATE_LIMIT_RPM
+      ? { rpm: Number(env.NEXUS_RATE_LIMIT_RPM), burst: Number(env.NEXUS_RATE_LIMIT_BURST ?? env.NEXUS_RATE_LIMIT_RPM) }
+      : null)
+  });
   const registry = new ToolRegistry();
   for (const t of fsTools({ allowedPaths: ['/workspace', process.cwd()] })) registry.register(t);
   for (const t of terminalTools({ timeoutMs: 60_000 })) registry.register(t);

@@ -5,6 +5,25 @@
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Minimal token bucket, inlined so this package stays zero-dep.
+// Capacity = burst; refills steadily at capacity/rpm per ms.
+export class MiniBucket {
+  constructor({ rpm, burst }) {
+    this.capacity = burst;
+    this.perMs = rpm / 60_000;
+    this.tokens = burst;
+    this.last = Date.now();
+  }
+  waitMs(cost = 1) {
+    const now = Date.now();
+    this.tokens = Math.min(this.capacity, this.tokens + (now - this.last) * this.perMs);
+    this.last = now;
+    if (this.tokens >= cost) return 0;
+    return Math.ceil((cost - this.tokens) / this.perMs);
+  }
+  consume(cost = 1) { this.tokens -= cost; }
+}
+
 /** Parse an SSE chat-completions body into the final aggregated response. */
 function parseSseBody(text) {
   let acc = { choices: [{ message: { content: '' } }] };
@@ -29,13 +48,15 @@ function parseSseBody(text) {
 }
 
 export class ModelProvider {
-  #base; #key; #models; #timeoutMs; #retries;
+  #base; #key; #models; #timeoutMs; #retries; #rateLimit;
 
   /**
-   * @param {{ baseUrl: string, apiKey?: string, models?: string[], timeoutMs?: number, retries?: number }} opts
+   * @param {{ baseUrl: string, apiKey?: string, models?: string[], timeoutMs?: number, retries?: number, rateLimit?: { rpm?: number, burst?: number } }} opts
    *   models: ordered fallback list; first entry is primary.
+   *   rateLimit: optional client-side throttle — rpm = sustained calls/min,
+   *     burst = max instant calls. Prevents burning quota on a tight loop.
    */
-  constructor({ baseUrl, apiKey = process.env.NEXUS_GATEWAY_KEY, models = ['hermes-agent'], timeoutMs = 60000, retries = 1 }) {
+  constructor({ baseUrl, apiKey = process.env.NEXUS_GATEWAY_KEY, models = ['hermes-agent'], timeoutMs = 60000, retries = 1, rateLimit = null }) {
     if (typeof baseUrl !== 'string' || !baseUrl.startsWith('http')) throw new TypeError('baseUrl must be an http(s) URL');
     if (!apiKey) throw new Error('apiKey required (pass explicitly or set NEXUS_GATEWAY_KEY)');
     if (!Array.isArray(models) || models.length === 0) throw new TypeError('models must be a non-empty array');
@@ -44,9 +65,21 @@ export class ModelProvider {
     this.#models = [...models];
     this.#timeoutMs = timeoutMs;
     this.#retries = retries;
+    this.#rateLimit = rateLimit ? new MiniBucket({
+      rpm: rateLimit.rpm ?? 1,
+      burst: rateLimit.burst ?? rateLimit.rpm ?? 1
+    }) : null;
   }
 
   get models() { return [...this.#models]; }
+
+  /** Sleep until the rate limiter allows a call. No-op when unconfigured. */
+  async #awaitRateLimit() {
+    if (!this.#rateLimit) return;
+    const waitMs = this.#rateLimit.waitMs();
+    if (waitMs > 0) await sleep(waitMs);
+    this.#rateLimit.consume();
+  }
 
   /**
    * Chat completion with fallback across configured models.
@@ -61,6 +94,7 @@ export class ModelProvider {
     for (const model of order) {
       for (let attempt = 0; attempt <= this.#retries; attempt++) {
         try {
+          await this.#awaitRateLimit();
           return await this.#oneCall(model, messages, opts);
         } catch (e) {
           lastErr = e;

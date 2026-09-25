@@ -36,6 +36,8 @@ Env (read from .env-gateway or process env):
   NEXUS_GATEWAY_BASE      gateway base URL
   NEXUS_GATEWAY_KEY       gateway API key
   NEXUS_GATEWAY_MODELS    comma-separated fallback models
+  NEXUS_RATE_LIMIT_RPM    optional: max sustained model calls per minute
+  NEXUS_RATE_LIMIT_BURST  optional: max instant calls before throttling (defaults to RPM)
 
 Subcommand shortcuts:
   nexus <task text>       if first arg is not a subcommand, treated as 'nexus run <task>'
