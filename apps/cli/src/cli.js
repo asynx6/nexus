@@ -15,6 +15,7 @@ import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
 import { runReplayDiff } from './replaydiff.js';
 import { runWebhooks, WEBHOOKS_HELP } from './webhooks.js';
+import { runSecrets, SECRETS_HELP } from './secrets.js';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,6 +28,7 @@ Usage:
                                                           (open http://H:N/ in a browser)
   nexus replay diff <left> <right> [--json] [--limit=N]   compare two runs event-by-event (subject ids)
   nexus webhooks <list|add|get|pause|resume|rm|test>     manage event subscriptions (control plane REST)
+  nexus secrets <init|set|get|list|rm|grant|revoke>      per-project encrypted secret vault (E1)
   nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
                                                           rewrites JSONL + sqlite index atomically. Optional --store
                                                           overrides the default event store path.
@@ -318,6 +320,13 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     } finally { await store.close(); }
   }
 
+  if (args.cmd === 'secrets') {
+    // nexus secrets <sub> [args...] — positional args ride in args.task,
+    // flags ride in args.flags (parseArgs splits them out).
+    const sub = args.task.split(/\s+/).filter(Boolean);
+    return runSecrets(sub, process.env, stdout, stderr, { flags: args.flags });
+  }
+
   if (args.cmd === 'webhooks') {
     // nexus webhooks <sub> [args...] — positional args ride in args.task.
     const whArgs = args.task.split(/\s+/).filter(Boolean);
@@ -441,6 +450,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         agentId,
         sandbox: null,
         maxSteps,
+        env: ctx.env,
         system: 'You are a NEXUS agent. Work strictly inside the current working directory; refuse to access /workspace or absolute paths unless explicitly granted. Be concise.',
       });
       const ended = makeEvent('task.ended', { taskId, agentId, ok: true, summary: result?.answer?.slice(0, 500) }, taskId);

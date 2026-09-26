@@ -6,10 +6,11 @@ import { loadEnv, makeLogger } from '@nexus/shared';
 import { EventBus, EventStore, makeEvent } from '@nexus/event-system';
 import { ModelProvider } from '@nexus/model-providers';
 import { ToolRegistry, ToolExecutor, fsTools, terminalTools, autoDiscoverTools } from '@nexus/tool-system';
-import { PermissionManager, AuditTrail } from '@nexus/security';
+import { PermissionManager, AuditTrail, Vault, ProjectSecrets } from '@nexus/security';
 import { AgentLoop, loopTools } from '@nexus/agent-runtime';
 import { loadPlugins } from '@nexus/plugin-registry';
 import { join } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
 
 export { AgentLoop };
 
@@ -70,7 +71,37 @@ export async function buildRunCtx(opts = {}) {
   const executor = new ToolExecutor({ registry, permissions, audit });
   const tools = loopTools({ registry, executor });
 
-  return { log, bus, store, audit, provider, registry, permissions, executor, tools, env, pluginErrors };
+  // E1: decrypt the per-project vault and materialize granted secrets into the
+  // exec env. With no vault configured this is a no-op — P04 behavior unchanged.
+  let projectSecrets = null;
+  let secretNames = [];
+  const pass = opts.passphrase ?? env.NEXUS_PROJECT_PASSPHRASE;
+  const vaultPath = opts.vaultPath ?? env.NEXUS_PROJECT_SECRETS_FILE ?? join(process.cwd(), '.nexus', 'secrets.enc');
+  if (pass && existsSync(vaultPath)) {
+    const vault = Vault.open(pass, readFileSync(vaultPath, 'utf8'));
+    projectSecrets = new ProjectSecrets({ vault, bus });
+    loadGrantsSidecar(projectSecrets, vaultPath);
+    // 'cli' is the principal for a local run; agent ids get grants via the API.
+    secretNames = projectSecrets.grantsFor('cli');
+    for (const name of secretNames) {
+      const plaintext = vault.get(name);
+      if (plaintext !== null) env[name] = plaintext;
+    }
+    if (secretNames.length && log) log.info(`secrets: ${secretNames.length} injected from project vault`);
+  }
+
+  return { log, bus, store, audit, provider, registry, permissions, executor, tools, env, pluginErrors,
+    projectSecrets, secretNames };
+}
+
+/** Grants live in <vault>.grants (names only — never values). */
+function loadGrantsSidecar(secrets, vaultPath) {
+  const p = vaultPath + '.grants';
+  if (!existsSync(p)) return;
+  const doc = JSON.parse(readFileSync(p, 'utf8'));
+  for (const [principal, names] of Object.entries(doc)) {
+    for (const name of names) secrets.grant(principal, name);
+  }
 }
 
 /** Build a replay context: only event store + bus (read-only). */
