@@ -13,6 +13,7 @@ import { installGracefulShutdown as installCliGraceful } from './graceful.js';
 import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
+import { runReplayDiff } from './replaydiff.js';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +24,7 @@ Usage:
                                                           --follow tails live events (poll default 1s)
   nexus replay --port N [--host=H] [--no-open]           serve browser-based event timeline UI on :N
                                                           (open http://H:N/ in a browser)
+  nexus replay diff <left> <right> [--json] [--limit=N]   compare two runs event-by-event (subject ids)
   nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
                                                           rewrites JSONL + sqlite index atomically. Optional --store
                                                           overrides the default event store path.
@@ -226,6 +228,13 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
 
   if (args.cmd === 'audit') {
     return await runAudit(argv.slice(1), env, stdout, stderr);
+  }
+
+  if (args.cmd === 'replay' && args.task.startsWith('diff')) {
+    // nexus replay diff <left> <right> [--json] [--limit=N]
+    // Flags land in args.flags (parseArgs); positional subjects ride in task.
+    const diffArgs = args.task.slice(5).split(/\s+/).filter(Boolean);
+    return await runReplayDiff(diffArgs, buildReplayCtx(), stdout, stderr, args.flags);
   }
 
   if (args.cmd === 'replay') {

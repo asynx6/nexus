@@ -11,7 +11,7 @@ NEXUS gives an LLM agent:
 - An **append-only event log** of every tool call, decision, and result, replayable from any point.
 - **Long-term memory** (short-term, long-term, project) with both pluggable storage and an event-stream recall index.
 - A **CLI operator** (`nexus run`, `nexus replay`, `nexus tasks`, `nexus healthz`, `nexus init`) to drive agents from the terminal.
-- A **minimal web dashboard** for live event streams and replay.
+- A **minimal web dashboard** for live event streams, replay, and run-to-run diff.
 - A **Model Context Protocol (MCP) server** so Claude Code, Cursor, and other MCP-aware clients can use NEXUS as a tool source.
 - **Multi-model consensus** — N agents vote on tool calls; automatic fallback when a primary model errors out.
 - **Multi-agent supervision** and **per-project knowledge-graph memory** (in v0.3.0).
@@ -24,6 +24,7 @@ Most "agent" stacks are wrappers around a chat loop. NEXUS is built around the a
 
 - Replay any run from any point to reproduce or diagnose failures.
 - Reconcile tool calls against the model output to detect drift.
+- **Diff two runs** event-by-event to see exactly why a retry, a regression, or a flaky task diverged.
 - Audit which agent touched which file under which grant.
 - Share an event stream across multiple agents without coupling their runtimes.
 
@@ -124,7 +125,7 @@ In flight for **v0.3.0** (Autonomy Sprint, 2026-09-18+):
 | Milestone | Theme | Examples |
 |-----------|-------|----------|
 | A | AI-native power | multi-agent supervisor, knowledge-graph memory, tool auto-discovery, prompt versioning |
-| B | Observability | live web dashboard, replay diff between two runs |
+| B | Observability | live web dashboard, replay diff between two runs ✅ |
 | C | Developer experience | `nexus doctor --fix`, `nexus ask` inline playground |
 | D | Integrations + DB | GitHub Actions bot, webhook receiver, pluggable DB (SQLite default + PG/MySQL/Mongo), one-click deploy |
 | E | Security + governance | per-project encrypted secrets, immutable hash-chained audit, rate limiting, sandbox policy DSL |
