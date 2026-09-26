@@ -17,7 +17,7 @@ const pubVendor = join(pub, 'vendor');
 
 // Packages the CLI imports at runtime.
 const PKGS = ['shared', 'event-system', 'sandbox-runtime', 'security', 'tool-system',
-              'model-providers', 'agent-runtime', 'audit', 'consensus', 'memory'];
+              'model-providers', 'agent-runtime', 'audit', 'consensus', 'memory', 'plugin-registry'];
 
 // --- 1. Fresh publish copy of the CLI, minus dev-only junk ---
 rmSync(pub, { recursive: true, force: true });

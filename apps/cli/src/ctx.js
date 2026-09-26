@@ -8,12 +8,14 @@ import { ModelProvider } from '@nexus/model-providers';
 import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '@nexus/tool-system';
 import { PermissionManager, AuditTrail } from '@nexus/security';
 import { AgentLoop, loopTools } from '@nexus/agent-runtime';
+import { loadPlugins } from '@nexus/plugin-registry';
+import { join } from 'node:path';
 
 export { AgentLoop };
 
 /** Build a reusable run context: provider + tools + loop + event bus + store.
  *  Env-driven config (NEXUS_GATEWAY_*) — no secrets in code. */
-export function buildRunCtx(opts = {}) {
+export async function buildRunCtx(opts = {}) {
   // loadEnv populates process.env without leaking values; read them back.
   // Gateway secrets live in .env-gateway (setup wizard target), not .env.
   loadEnv('.env-gateway');
@@ -39,7 +41,19 @@ export function buildRunCtx(opts = {}) {
   const registry = new ToolRegistry();
   for (const t of fsTools({ allowedPaths: ['/workspace', process.cwd()] })) registry.register(t);
   for (const t of terminalTools({ timeoutMs: 60_000 })) registry.register(t);
-
+  const pluginErrors = [];
+  if (env.NEXUS_ENABLE_PLUGINS !== '0') {
+    const pluginDirs = [join(process.cwd(), '.nexus', 'plugins')];
+    if (env.NEXUS_PLUGIN_DIR) pluginDirs.push(env.NEXUS_PLUGIN_DIR);
+    const { plugins, errors } = await loadPlugins(pluginDirs);
+    for (const pl of plugins) {
+      for (const t of pl.tools) {
+        if (!registry.has(t.name)) registry.register(t);
+      }
+    }
+    pluginErrors.push(...errors);
+    if (errors.length && log) log.warn(`plugins: ${errors.length} failed to load`);
+  }
   const allowedPaths = ['/workspace', process.cwd()];
   const allowedPathPatterns = allowedPaths.flatMap((p) => [p, `${p}/**`]);
   const permissions = new PermissionManager();
@@ -51,7 +65,7 @@ export function buildRunCtx(opts = {}) {
   const executor = new ToolExecutor({ registry, permissions, audit });
   const tools = loopTools({ registry, executor });
 
-  return { log, bus, store, audit, provider, registry, permissions, executor, tools, env };
+  return { log, bus, store, audit, provider, registry, permissions, executor, tools, env, pluginErrors };
 }
 
 /** Build a replay context: only event store + bus (read-only). */

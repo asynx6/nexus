@@ -3,6 +3,7 @@
 
 import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
 import { loadEnv } from '@nexus/shared';
+import { loadPlugins } from '@nexus/plugin-registry';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
@@ -27,6 +28,7 @@ Usage:
   nexus tasks                                            list recent task subjects
   nexus healthz                                          check gateway reachability
   nexus setup                                             interactive gateway config wizard (base URL, API key, model) — writes .env-gateway
+  nexus plugins [--dir=PATH]                              list discovered tool plugins in .nexus/plugins
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
@@ -164,6 +166,19 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
 
   if (args.cmd === 'setup') {
     return await runSetup(argv.slice(1), { stdout, stderr });
+  }
+
+  if (args.cmd === 'plugins') {
+    const dirs = [join(process.cwd(), '.nexus', 'plugins')];
+    if (args.flags.dir) dirs.push(resolve(args.flags.dir));
+    const { plugins, errors } = await loadPlugins(dirs);
+    if (plugins.length === 0) stdout('no plugins found');
+    for (const p of plugins) {
+      stdout(`  ${p.name}  (${p.tools.length} tool${p.tools.length === 1 ? '' : 's'})  ${p.path}`);
+      for (const t of p.tools) stdout(`      - ${t.name}${t.description ? `  ${t.description}` : ''}`);
+    }
+    for (const e of errors) stderr(`  plugin error: ${e.path}: ${e.error}`);
+    return errors.length ? 1 : 0;
   }
 
   if (args.cmd === 'init') {
@@ -369,7 +384,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
 
   if (args.cmd === 'run' || (args.task && args.cmd === 'nexus')) {
     if (!args.task.trim()) { stderr('run: task text required'); return 2; }
-    const ctx = buildRunCtx({ log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
+    const ctx = await buildRunCtx({ log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
     const agentId = newAgentId();
     const taskId = newTaskId();
     const maxSteps = readFlags(args.flags, 'max-steps', 'maxSteps') ?? 16;
