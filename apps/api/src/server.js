@@ -24,6 +24,8 @@ import { createRouter, sendJson } from './router.js';
 import { bearerAuth, compose } from './auth.js';
 import { makeHandlers } from './handlers.js';
 import { installGracefulShutdown } from './graceful.js';
+import { WebhookRegistry, startDeliveryEngine } from './webhooks.js';
+import { makeWebhookHandlers } from './webhook-handlers.js';
 
 // expose ModelProvider + AgentLoop on globalThis so handlers.js can avoid a
 // hard dep edge — the api facade depends on both packages already; we just
@@ -36,6 +38,7 @@ globalThis.__nexus_agent_runtime__ = { AgentLoop, loopTools };
  * @param {{ envPath?: string, logger?, runtime?: any }} [opts]
  */
 export async function buildApp(opts = {}) {
+  // fetchImpl: injectable transport for the webhook delivery engine (tests).
   if (opts.envPath !== undefined) loadEnv(opts.envPath);
 
   const logger = opts.logger ?? makeLogger('api', { json: process.env.NEXUS_LOG_JSON === '1' });
@@ -54,10 +57,18 @@ export async function buildApp(opts = {}) {
   const registry = new ToolRegistry();
   for (const t of [...fsTools(), ...terminalTools()]) registry.register(t);
   const audit = new AuditTrail({ bus, runId: 'api' });
+
+  // D2 webhook receiver: registry + delivery engine wired to the same bus.
+  const webhooks = new WebhookRegistry();
+  const engine = startDeliveryEngine({ registry: webhooks, bus, fetchImpl: opts.fetchImpl });
   const runtime = opts.runtime ?? null; // caller provides a fake in tests
   if (!runtime) throw new Error('runtime required (pass opts.runtime; production: new DockerRuntime())');
 
   const executor = new ToolExecutor({ registry, permissions, audit });
+
+  const webhookHandlers = makeWebhookHandlers({
+    registry: webhooks, secrets, engine, bus, logger,
+  });
 
   const taskStore = new TaskStore();
   const handlers = makeHandlers({
@@ -66,7 +77,15 @@ export async function buildApp(opts = {}) {
   });
 
   const authMw = bearerAuth({ secrets });
+  const wh = (method, pattern, handler) => ({ method, pattern, handler: (ctx) => authMw(ctx.req, ctx.res, () => webhookHandlers[handler](ctx)) });
   const routes = [
+    wh('GET', '/webhooks', 'listWebhooks'),
+    wh('POST', '/webhooks', 'createWebhook'),
+    wh('GET', '/webhooks/:id', 'getWebhook'),
+    wh('PATCH', '/webhooks/:id', 'updateWebhook'),
+    wh('DELETE', '/webhooks/:id', 'deleteWebhook'),
+    wh('POST', '/webhooks/:id/test', 'testWebhook'),
+    wh('GET', '/webhooks/:id/deliveries', 'getDeliveries'),
     { method: 'GET', pattern: '/healthz', handler: (ctx) => { authMw(ctx.req, ctx.res, () => handlers.healthz(ctx)); } },
     { method: 'GET', pattern: '/tasks', handler: (ctx) => { authMw(ctx.req, ctx.res, () => handlers.listTasks(ctx)); } },
     { method: 'POST', pattern: '/tasks', handler: (ctx) => { authMw(ctx.req, ctx.res, () => handlers.createTask(ctx)); } },
@@ -75,7 +94,7 @@ export async function buildApp(opts = {}) {
   ];
   const dispatch = createRouter(routes, { notFound: (res) => sendJson(res, 404, { error: 'not_found' }) });
 
-  return { logger, bus, eventStore, secrets, permissions, registry, executor, runtime, taskStore, handlers, dispatch };
+  return { logger, bus, eventStore, secrets, permissions, registry, executor, runtime, taskStore, handlers, dispatch, webhooks, webhookHandlers, engine };
 }
 
 /**

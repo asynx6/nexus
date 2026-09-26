@@ -101,6 +101,31 @@ node index.js
 
 The dashboard shows live events from any active run, the per-run event count, and a replay view that lets you scrub through past runs.
 
+## Webhooks
+
+Subscribe any HTTP endpoint to the event stream. Every matching event is POSTed as JSON, HMAC-SHA256 signed in the `X-NEXUS-Signature` header (`sha256=<hex>`), with exponential-backoff retries that stop on permanent errors (4xx) and keep going on transient ones (5xx, 429, network).
+
+```sh
+export NEXUS_API_BASE=http://localhost:4000   # control plane base url
+export NEXUS_API_TOKEN=...                    # bearer token (if the plane requires auth)
+
+nexus webhooks add https://your-service/hooks/nexus --events=task.completed,task.failed --secret=wh-secret
+nexus webhooks list
+nexus webhooks test hook-<id>                 # emit a synthetic webhook.test event
+nexus webhooks pause hook-<id>                # stop delivery without deleting the registration
+```
+
+Verify the signature on the receiving side (Node):
+
+```js
+import { createHmac, timingSafeEqual } from 'node:crypto';
+const raw = await req.text();                                 // exact bytes
+const sig = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
+if (!timingSafeEqual(Buffer.from(req.headers['x-nexus-signature']), Buffer.from(sig))) return 401;
+```
+
+The secret is stored in memory only and is never echoed back by the API; `hasSecret` in the registration record tells you a signature header to expect. Delivery is fire-and-forget from the event bus, so a slow receiver never blocks the agent loop.
+
 ## Contributing
 
 1. Fork and branch from `main`. Branch name: `feat/<scope>` or `fix/<scope>`.

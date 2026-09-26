@@ -14,6 +14,7 @@ import { makeEvent } from '@nexus/event-system';
 import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
 import { runReplayDiff } from './replaydiff.js';
+import { runWebhooks, WEBHOOKS_HELP } from './webhooks.js';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +26,7 @@ Usage:
   nexus replay --port N [--host=H] [--no-open]           serve browser-based event timeline UI on :N
                                                           (open http://H:N/ in a browser)
   nexus replay diff <left> <right> [--json] [--limit=N]   compare two runs event-by-event (subject ids)
+  nexus webhooks <list|add|get|pause|resume|rm|test>     manage event subscriptions (control plane REST)
   nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
                                                           rewrites JSONL + sqlite index atomically. Optional --store
                                                           overrides the default event store path.
@@ -314,6 +316,12 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
       }
       return 0;
     } finally { await store.close(); }
+  }
+
+  if (args.cmd === 'webhooks') {
+    // nexus webhooks <sub> [args...] — positional args ride in args.task.
+    const whArgs = args.task.split(/\s+/).filter(Boolean);
+    return await runWebhooks(whArgs, env, stdout, stderr);
   }
 
   if (args.cmd === 'events' && args.task === 'compact') {
