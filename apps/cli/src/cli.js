@@ -72,15 +72,19 @@ export function parseArgs(argv) {
     } else positional.push(a);
   }
   out.helpFlag = out.flags.help === true || out.flags.h === true;
-  if (positional.length) {
-    out.cmd = positional[0];
-    out.task = positional.slice(1).join(' ');
-  } else if (argv.length) {
-    // only flags, no positional: --help/-h show help, anything else is unknown.
-    out.cmd = out.helpFlag ? 'help' : 'unknown';
-    out.unknownArg = argv[0];
-  }
-  return out;
+    // A bare, unknown first token is shorthand for `nexus run <task text>` —
+    // e.g. `nexus "fix the bug"` and `nexus build feature X`. Only known
+    // subcommands dispatch normally; anything else is treated as a task.
+    const isKnownCommand = (c) => ['run','replay','webhooks','secrets','prompts','events',
+      'tasks','healthz','doctor','init','audit','setup','plugins','telemetry','ask'].includes(c);
+    if (positional.length) {
+      out.cmd = isKnownCommand(positional[0]) ? positional[0] : 'nexus';
+      out.task = positional.slice(out.cmd === 'nexus' ? 0 : 1).join(' ');
+    } else if (argv.length) {
+      out.cmd = out.helpFlag ? 'help' : 'unknown';
+      out.unknownArg = argv[0];
+    }
+    return out;
 }
 
 function readFlags(flags, ...keys) {
@@ -441,8 +445,8 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
   }
 
   if (args.cmd === 'run' || (args.task && args.cmd === 'nexus')) {
-    if (!args.task.trim()) { stderr('run: task text required'); return 2; }
-    const ctx = await buildRunCtx({ env, log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
+      if (!args.task.trim()) { stderr('run: task text required'); return 2; }
+      const ctx = await buildRunCtx({ env, log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
     const agentId = newAgentId();
     const taskId = newTaskId();
     const maxSteps = readFlags(args.flags, 'max-steps', 'maxSteps') ?? 16;

@@ -107,20 +107,27 @@ export async function runSecrets(argv, env, stdout, stderr, opts = {}) {
     }
 
     if (sub === 'set') {
-      const name = argv[1];
-      if (!name) return fail(stderr, 'secrets set <NAME> [--value=V]');
-      const { path, vault } = openVault(env);
-      let value = typeof flags.value === 'string' ? flags.value : '';
-      if (!value) {
-        if (io.promptValue) value = await io.promptValue(name);
-        else value = ask(`Value for ${name}: `, { secret: true });
-      }
-      if (!value) return fail(stderr, 'secrets set: value must be non-empty');
-      vault.set(name, value);
-      saveVault(path, vault);
-      stdout(`stored: ${name}`);
-      return 0;
-    }
+          let name = argv[1];
+          if (!name) return fail(stderr, 'secrets set <NAME> [value] or --value=V');
+          const { path, vault } = openVault(env);
+          // Accept value as --value=V, the 2nd positional (argv[2]), or NAME=VALUE.
+          let value = typeof flags.value === 'string' ? flags.value : '';
+          if (!value && typeof argv[2] === 'string') value = argv[2];
+          if (typeof name === 'string' && name.includes('=') && !value) {
+            const eq = name.indexOf('=');
+            value = name.slice(eq + 1);
+            name = name.slice(0, eq);
+          }
+          if (!value) {
+            if (io.promptValue) value = await io.promptValue(name);
+            else value = ask(`Value for ${name}: `, { secret: true });
+          }
+          if (!value) return fail(stderr, 'secrets set: value must be non-empty');
+          vault.set(name, value);
+          saveVault(path, vault);
+          stdout(`stored: ${name}`);
+          return 0;
+        }
 
     if (sub === 'get') {
       const name = argv[1];
