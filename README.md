@@ -197,4 +197,4 @@ See `docs/TASKS.md` for the live board and `docs/plan-nexus.md` for the full roa
 
 ## License
 
-MIT.
+[MIT](LICENSE)
