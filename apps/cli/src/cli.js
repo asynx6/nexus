@@ -5,7 +5,6 @@ import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
 import { loadEnv } from '@nexus/shared';
 import { loadPlugins } from '@nexus/plugin-registry';
 import { isTelemetryEnabled, setTelemetryEnabled } from '@nexus/telemetry';
-import { PromptRegistry } from '@nexus/prompt-versioning';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
@@ -215,49 +214,12 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     return runAsk([args.task, ...Object.entries(args.flags).filter(([_, v]) => v === true).map(([k]) => `--${k}`)], env, stdout, stderr);
   }
 
-  if (args.cmd === 'prompt') {
-    const sub = args.positional?.[0] ?? args.task;
-    const reg = new PromptRegistry();
-    const name = args.flags.name ?? args.positional?.[1];
-    if (sub === 'publish') {
-      if (!name) { stderr('prompt publish: --name=<prompt> required'); return 2; }
-      const version = args.flags.version;
-      if (!version) { stderr('prompt publish: --version=<v> required'); return 2; }
-      const file = args.flags.file;
-      let content;
-      try { content = file ? readFileSync(resolve(file), 'utf8') : (args.flags.content ?? ''); }
-      catch (e) { stderr(`prompt publish: cannot read ${file}: ${e.message}`); return 2; }
-      if (!content) { stderr('prompt publish: content required (--file=PATH or --content=TEXT)'); return 2; }
-      try {
-        const out = reg.publish(name, version, content, { bus: null });
-        stdout(`published ${out.name}@${out.version} sha256=${out.sha256.slice(0, 16)}…`);
-        return 0;
-      } catch (e) { stderr(`prompt publish: ${e.message}`); return 2; }
-    }
-    if (sub === 'show') {
-      if (!name) { stderr('prompt show: --name=<prompt> required'); return 2; }
-      const got = reg.resolve(name, args.flags.version ?? args.flags.ref ?? 'latest');
-      if (!got) { stderr(`prompt show: ${name}@${args.flags.version ?? 'latest'} not found`); return 1; }
-      stdout(`# ${got.name}@${got.version}  sha256=${got.sha256.slice(0, 16)}…\n\n${got.content}`);
-      return 0;
-    }
-    if (sub === 'list') {
-      if (!name) { stderr('prompt list: --name=<prompt> required'); return 2; }
-      const all = reg.versions(name);
-      if (!all.length) { stderr(`prompt list: ${name} not found`); return 1; }
-      for (const m of all) stdout(`  ${m.version}  ${m.sha256.slice(0, 16)}…  ${m.ts}`);
-      return 0;
-    }
-    stderr('prompt: unknown subcommand (publish | show | list)');
-    return 2;
-  }
-
   if (args.cmd === 'init') {
-    let parsed;
-    try { parsed = parseInitArgs(argv.slice(1)); }
-    catch (e) { stderr('init: ' + e.message); return 2; }
+      let parsed;
+      try { parsed = parseInitArgs(argv.slice(1)); }
+      catch (e) { stderr('init: ' + e.message); return 2; }
 
-    let answers;
+      let answers;
     try {
       answers = parsed.yes
         ? { name: parsed.name, scope: '@' + parsed.name, provider: 'hermes-agent', sandbox: 'subprocess' }

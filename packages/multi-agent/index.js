@@ -5,3 +5,4 @@ export { AgentStream } from './src/stream.js';
 export { Handshake } from './src/handshake.js';
 export { CrossTalk } from './src/crosstalk.js';
 export { Cluster } from './src/cluster.js';
+export { Supervisor } from './src/supervisor.js';
