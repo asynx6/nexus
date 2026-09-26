@@ -44,16 +44,19 @@ test('scheduleTask -> nextTask flow hands work to the first available worker', (
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('nextTask rejects unknown workers and returns null when not leader', () => {
+test('nextTask returns null when not leader', () => {
   fresh();
   const store = new EventStore(join(dir, 'e.jsonl'));
-  const s = new Supervisor({ store, roster: ['w1'], agentId: 'sup' });
-  s.bootstrap();
-  s.scheduleTask('x');
-  // make w1 the leader: construct the same roster but join w1 first
-  const s2 = new Supervisor({ store, roster: ['sup'], agentId: 'w1' });
-  assert.equal(s2.isLeader(), true, 'w1 is now leader (lower seq)');
-  assert.equal(s.nextTask('w1'), null, 'former leader must not hand out work');
+  // Same 2-node cluster seen from both supervisors. sup1 joins first → leader.
+  const s1 = new Supervisor({ store, roster: ['w1'], agentId: 'sup1' });
+  const s2 = new Supervisor({ store, roster: ['sup1'], agentId: 'w1' });
+  s1.bootstrap(); // sup1 + w1 join; sup1 is leader (first)
+  assert.equal(s1.isLeader(), true, 'sup1 remains leader');
+  assert.equal(s2.isLeader(), false, 'w1 is not the leader');
+  s1.scheduleTask('x');
+  // w1's supervisor is not the leader → must not hand out work
+  assert.equal(s2.nextTask('sup1'), null, 'non-leader must refuse to hand out work');
+  assert.notEqual(s1.nextTask('w1'), null, 'the actual leader can hand out the task');
   store.close();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -67,7 +70,7 @@ test('completeTask records done/failed events on both streams', () => {
   const task = s.nextTask('w1');
   s.completeTask('w1', task.taskId, true, { cost: 3 });
   // the supervisor's stream must have the completion
-  const done = [...s.stream('sup').events()].find((e) => e.name === 'cluster.task.done');
+  const done = [...s.stream('sup').events()].find((e) => e.name === 'cluster.done');
   assert.ok(done, 'supervisor should see the completion');
   assert.equal(done.data.workerId, 'w1');
   assert.equal(done.data.ok, true);
@@ -99,8 +102,7 @@ test('cluster state is reconstructable by a fresh Supervisor on the same store',
   s1.scheduleTask('ping');
   const { taskId } = s1.nextTask('w1');
   s1.completeTask('w1', taskId, true);
-  store.close();
-  // new supervisor on the same store sees everything
+  // new supervisor on the same store sees everything (store still open)
   const s2 = new Supervisor({ store, roster: ['w1'], agentId: 'sup' });
   assert.equal(s2.leader(), 'sup');
   assert.equal(s2.cluster.members().length, 2, 'sup + w1');

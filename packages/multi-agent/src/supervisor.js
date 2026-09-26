@@ -22,7 +22,10 @@ export class Supervisor {
     // The supervisor joins the roster at runtime via cluster.join; allow it
     // to be absent initially so bootstrap() can claim membership in order.
     if (!Array.isArray(roster) || roster.length < 1) throw new Error('roster needs at least 1 member');
-    this.cluster = new Cluster(store, [...roster, agentId]);
+    // agentId is appended to Cluster's roster; dedupe so a worker that runs a
+    // supervisor role (agentId also in roster) does not create a duplicate.
+    const members = [...new Set([...roster, agentId])];
+    this.cluster = new Cluster(store, members);
     this.store = store;
     this.agentId = agentId;
     this.roster = [...roster];
@@ -51,7 +54,7 @@ export class Supervisor {
   scheduleTask(text, meta = {}) {
     const taskId = makeTaskId();
     this.cluster.enqueue('tasks', taskId, { text, maxSteps: this.maxSteps });
-    this.stream(this.agentId).append('cluster.task.scheduled', { taskId, text });
+    this.stream(this.agentId).append('cluster.scheduled', { taskId, text });
     return { queueId: 'tasks', taskId };
   }
 
@@ -69,7 +72,7 @@ export class Supervisor {
 
   /** Worker reports completion (or failure) of a claimed task. */
   completeTask(workerId, taskId, ok, result = {}, meta = {}) {
-    const name = ok ? 'cluster.task.done' : 'cluster.task.failed';
+    const name = ok ? 'cluster.done' : 'cluster.failed';
     this.stream(workerId).append(name, { taskId, result }, meta);
     this.stream(this.agentId).append(name, { workerId, taskId, ok, result }, meta);
   }
@@ -82,7 +85,7 @@ export class Supervisor {
     const active = new Set(this.cluster.members());
     const claimed = new Map();
     for (const ev of this.store.replay()) {
-      if (ev.name === 'cluster.task.claimed' && ev.data.queue === 'tasks') {
+      if (ev.name === 'cluster.claimed' && ev.data.queue === 'tasks') {
         claimed.set(ev.data.id, { by: ev.data.by, seq: ev.seq });
       }
     }
@@ -92,7 +95,8 @@ export class Supervisor {
     let re = 0;
     for (const [id, info] of claimed) {
       if (!active.has(info.by)) {
-        this.cluster.enqueue('tasks', id, { text: `<orphan ${id}>`, maxSteps: this.maxSteps });
+        const newId = `orphan_${id}_${Date.now()}_${re}`;
+        this.cluster.enqueue('tasks', newId, { text: `<orphan ${id}>`, maxSteps: this.maxSteps });
         re++;
       }
     }
