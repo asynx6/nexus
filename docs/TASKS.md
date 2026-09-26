@@ -58,7 +58,7 @@ Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
 | D2 webhook receiver | Leonars | ✅ feat/D2-webhooks — registry + delivery engine + `nexus webhooks` CLI + REST CRUD |
 | E1 per-project encrypted secrets | Leonars | 🔨 feat/E1-project-secrets — Vault (scrypt+aes-256-gcm) + ProjectSecrets RBAC + `nexus secrets` CLI |
 | A3 tool auto-discovery | Leonars | ✅ 409708e — *.tools.js + @nexus/tool-* auto-load (ctx.js) |
-| A4 prompt versioning | Leonars | ⏭️ queued |
+| A4 prompt versioning | Leonars | ✅ feat/A4-prompt-versioning — `@nexus/prompts` registry (content-addressed) + `nexus prompts` CLI + `run --prompt=name@hash` |
 | A1 multi-agent supervisor | Leonars | ⏭️ last, before feature freeze |
 
 Finalization rule (Bos, 2026-09-25): clear the smaller tasks first; A1 is the

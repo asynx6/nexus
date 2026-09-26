@@ -126,6 +126,26 @@ if (!timingSafeEqual(Buffer.from(req.headers['x-nexus-signature']), Buffer.from(
 
 The secret is stored in memory only and is never echoed back by the API; `hasSecret` in the registration record tells you a signature header to expect. Delivery is fire-and-forget from the event bus, so a slow receiver never blocks the agent loop.
 
+## Versioned system prompts
+
+System prompts are named and versioned, so a recorded run can be replayed against the exact instruction bytes it used:
+
+```
+nexus prompts list                             # names + active version + version counts
+nexus prompts show cli.default                 # body of the active version
+nexus prompts show cli.default --rev=<hash>    # body of one version
+nexus prompts diff cli.default <left> <right>  # added/removed lines
+nexus prompts rollback cli.default <hash>      # re-pin an older version as active
+nexus prompts edit cli.default                 # open $EDITOR, publish on save
+```
+
+A run pins its prompt so the resolved hash rides on the `task.started` event:
+
+```
+nexus run "write fib" --prompt=cli.default                 # latest version
+nexus run "write fib" --prompt=cli.default@<hash>          # that exact version
+```
+
 ## Project secrets
 
 Per-project secrets (API keys, tokens) live in an encrypted vault at `.nexus/secrets.enc`, not in `.env` or the repo. Values are decrypted into the agent's exec environment only — never written to disk, logs, or events.

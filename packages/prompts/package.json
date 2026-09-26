@@ -1,0 +1,15 @@
+{
+  "name": "@nexus/prompts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "Named system-prompt registry with content-addressed versioning (A4)",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {}
+}
