@@ -126,6 +126,21 @@ if (!timingSafeEqual(Buffer.from(req.headers['x-nexus-signature']), Buffer.from(
 
 The secret is stored in memory only and is never echoed back by the API; `hasSecret` in the registration record tells you a signature header to expect. Delivery is fire-and-forget from the event bus, so a slow receiver never blocks the agent loop.
 
+## Project secrets
+
+Per-project secrets (API keys, tokens) live in an encrypted vault at `.nexus/secrets.enc`, not in `.env` or the repo. Values are decrypted into the agent's exec environment only — never written to disk, logs, or events.
+
+```sh
+nexus secrets init                             # create the vault (asks for a passphrase)
+export NEXUS_PROJECT_PASSPHRASE=...            # or prompt each run
+nexus secrets set OPENAI_API_KEY               # add a secret (value prompted, not echoed)
+nexus secrets list                             # names only — values never printed
+nexus secrets grant agent-1 OPENAI_API_KEY     # let an agent read it into its exec env
+nexus secrets revoke agent-1 OPENAI_API_KEY
+```
+
+At rest the vault is AES-256-GCM with a key derived per project (scrypt over your passphrase with a random salt), so the same passphrase yields different ciphertext in two projects and a stolen vault file is worthless without the passphrase. Which principal may read which name is a separate grant table — deny-by-default, and every grant, revoke, and access is emitted as an audit event.
+
 ## Contributing
 
 1. Fork and branch from `main`. Branch name: `feat/<scope>` or `fix/<scope>`.

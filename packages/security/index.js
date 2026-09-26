@@ -4,4 +4,6 @@ export const NAME = '@nexus/security';
 export { PermissionManager } from './src/permissions.js';
 export { AuditTrail, redact } from './src/audit.js';
 export { SecretStore } from './src/secrets.js';
+export { Vault } from './src/vault.js';
+export { ProjectSecrets } from './src/project-secrets.js';
 export { TokenBucket, SlidingWindow, RateLimitError } from './src/rate-limit.js';

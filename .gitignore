@@ -10,3 +10,7 @@ apps/cli/vendor/
 apps/cli/node_modules/
 link-state/
 .nexus/
+.nexus/secrets.enc
+.nexus/secrets.enc.grants
+*.secrets.enc
+*.secrets.enc.grants
