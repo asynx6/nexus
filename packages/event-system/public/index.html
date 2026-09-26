@@ -44,6 +44,16 @@
   pre.json { background: #0b0e13; border: 1px solid var(--line); border-radius: 4px; padding: 10px; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
   .kv { display: grid; grid-template-columns: 100px 1fr; gap: 4px 12px; margin-bottom: 12px; }
   .kv .k { color: var(--muted); }
+  .diffbar { display: flex; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; align-items: center; }
+  .diffbar select { background: #0b0e13; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; min-width: 160px; }
+  .diffbar .arrow { color: var(--muted); }
+  .diffbar .summary { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .diffop { padding: 6px 12px; border-bottom: 1px solid var(--line); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .diffop .tag { display: inline-block; min-width: 10px; font-weight: 700; margin-right: 8px; }
+  .diffop.added .tag { color: var(--ok); }
+  .diffop.removed .tag { color: var(--err); }
+  .diffop.modified .tag { color: var(--warn); }
+  .diffop .delta { color: var(--muted); padding-left: 18px; }
 </style>
 </head>
 <body>
@@ -61,6 +71,14 @@
   <button id="apply">apply</button>
   <button id="clear" class="secondary">clear</button>
 </div>
+<div class="diffbar">
+  <span style="color:var(--muted)">compare</span>
+  <select id="d-left"></select>
+  <span class="arrow">→</span>
+  <select id="d-right"></select>
+  <button id="d-compare" class="secondary">diff</button>
+  <span class="summary" id="d-summary"></span>
+</div>
 <main>
   <div class="timeline" id="timeline"><div class="empty">no events — pick a filter or wait for live data</div></div>
   <aside class="detail" id="detail">
@@ -69,5 +87,6 @@
   </aside>
 </main>
 <script type="module" src="./dashboard.js"></script>
+<script type="module" src="./diff.js"></script>
 </body>
 </html>

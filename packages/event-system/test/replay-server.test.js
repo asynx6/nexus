@@ -184,3 +184,91 @@ test('replay-server: ping endpoint + 405 on POST', async () => {
     await srv.close();
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+// TASK-LEONARS-B3: /api/subjects + /api/diff endpoints.
+test('replay-server: /api/subjects lists distinct runs', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nexus-diff-'));
+  const store = new EventStore(join(dir, 'events.jsonl'));
+  try {
+    store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { tool: 'fs.read' }, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_FINISHED, { tool: 'fs.read' }, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-b'));
+    const srv = createReplayServer({ store, publicDir: publicDir(), host: '127.0.0.1', port: 0 });
+    await srv.listen();
+    srv.port = srv.server.address().port;
+    try {
+      const r = await getJson(srv, '/api/subjects');
+      assert.strictEqual(r.status, 200);
+      assert.deepStrictEqual(
+        r.body.map((x) => [x.subject, x.count]).sort((a, b) => a[0].localeCompare(b[0])),
+        [['run-a', 2], ['run-b', 1]],
+      );
+    } finally { await srv.close(); }
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('replay-server: /api/diff aligns two runs and reports changes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nexus-diff-'));
+  const store = new EventStore(join(dir, 'events.jsonl'));
+  try {
+    // run-a: write ok; run-b: write fails, retries with terminal
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { tool: 'fs.write', path: '/f' }, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_FINISHED, { tool: 'fs.write', ok: true, ms: 12 }, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-b'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { tool: 'fs.write', path: '/f' }, 'run-b'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_FINISHED, { tool: 'fs.write', ok: false, ms: 30, errorText: 'ENOSPC' }, 'run-b'));
+    store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { tool: 'terminal.exec', cmd: 'run' }, 'run-b'));
+    const srv = createReplayServer({ store, publicDir: publicDir(), host: '127.0.0.1', port: 0 });
+    await srv.listen();
+    srv.port = srv.server.address().port;
+    try {
+      const r = await getJson(srv, '/api/diff?left=run-a&right=run-b');
+      assert.strictEqual(r.status, 200);
+      assert.strictEqual(r.body.left, 'run-a');
+      assert.strictEqual(r.body.right, 'run-b');
+      assert.deepStrictEqual(r.body.summary, { same: 2, mod: 1, added: 1, removed: 0, total: 4, identical: false });
+      const mod = r.body.ops.find((o) => o.op === 'mod');
+      assert.ok(mod, 'expected one modified event');
+      assert.deepStrictEqual(mod.changes.map((c) => c.field), ['errorText', 'ms', 'ok']);
+    } finally { await srv.close(); }
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('replay-server: /api/diff rejects and 404s clearly', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nexus-diff-'));
+  const store = new EventStore(join(dir, 'events.jsonl'));
+  try {
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-a'));
+    const srv = createReplayServer({ store, publicDir: publicDir(), host: '127.0.0.1', port: 0 });
+    await srv.listen();
+    srv.port = srv.server.address().port;
+    try {
+      const missingArgs = await fetch(`http://${srv.host}:${srv.port}/api/diff?left=run-a`);
+      assert.strictEqual(missingArgs.status, 400);
+      assert.match(await missingArgs.text(), /left and right subjects required/);
+      const missingRun = await fetch(`http://${srv.host}:${srv.port}/api/diff?left=run-a&right=nope`);
+      assert.strictEqual(missingRun.status, 404);
+      assert.match(await missingRun.text(), /no events for subject nope/);
+    } finally { await srv.close(); }
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('replay-server: /api/diff ignores an unrelated third run', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nexus-diff-'));
+  const store = new EventStore(join(dir, 'events.jsonl'));
+  try {
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-a'));
+    store.append(makeEvent(EVENTS.AGENT_STARTED, {}, 'run-b'));
+    // noise from a completely different run must not leak into the diff
+    store.append(makeEvent(EVENTS.AGENT_TOOL_CALLED, { tool: 'terminal.exec', cmd: 'unrelated' }, 'run-c'));
+    const srv = createReplayServer({ store, publicDir: publicDir(), host: '127.0.0.1', port: 0 });
+    await srv.listen();
+    srv.port = srv.server.address().port;
+    try {
+      const r = await getJson(srv, '/api/diff?left=run-a&right=run-b');
+      assert.strictEqual(r.body.summary.identical, true);
+      assert.strictEqual(r.body.ops.every((o) => o.op === 'same'), true);
+    } finally { await srv.close(); }
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});

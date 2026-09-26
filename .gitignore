@@ -8,3 +8,5 @@ sandbox-work/
 apps/cli/_publish/
 apps/cli/vendor/
 apps/cli/node_modules/
+link-state/
+.nexus/
