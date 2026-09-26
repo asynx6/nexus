@@ -7,6 +7,7 @@ import { EventBus, EventStore, makeEvent } from '@nexus/event-system';
 import { ModelProvider } from '@nexus/model-providers';
 import { ToolRegistry, ToolExecutor, fsTools, terminalTools, autoDiscoverTools } from '@nexus/tool-system';
 import { PermissionManager, AuditTrail, Vault, ProjectSecrets } from '@nexus/security';
+import { loadPromptStore } from './prompts.js';
 import { AgentLoop, loopTools } from '@nexus/agent-runtime';
 import { loadPlugins } from '@nexus/plugin-registry';
 import { join } from 'node:path';
@@ -20,7 +21,7 @@ export async function buildRunCtx(opts = {}) {
   // loadEnv populates process.env without leaking values; read them back.
   // Gateway secrets live in .env-gateway (setup wizard target), not .env.
   loadEnv('.env-gateway');
-  const env = process.env;
+  const env = opts.env ?? process.env;
   const log = opts.log ?? makeLogger('cli');
 
   const bus = new EventBus();
@@ -90,8 +91,13 @@ export async function buildRunCtx(opts = {}) {
     if (secretNames.length && log) log.info(`secrets: ${secretNames.length} injected from project vault`);
   }
 
+  // A4: named, versioned system prompts. Load the persisted store (this is the
+  // same file `nexus prompts edit` writes) and seed built-ins on top, so a run
+  // sees published versions and `--prompt=name@hash` resolves to real bytes.
+  const prompts = loadPromptStore(env).registry;
+
   return { log, bus, store, audit, provider, registry, permissions, executor, tools, env, pluginErrors,
-    projectSecrets, secretNames };
+    projectSecrets, secretNames, prompts };
 }
 
 /** Grants live in <vault>.grants (names only — never values). */

@@ -19,6 +19,7 @@ import { runWebhooks, WEBHOOKS_HELP } from './webhooks.js';
 import { runSecrets, SECRETS_HELP } from './secrets.js';
 import { runAsk } from './ask.js';
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { runPrompts, PROMPTS_HELP } from './prompts.js';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,6 +33,7 @@ Usage:
   nexus replay diff <left> <right> [--json] [--limit=N]   compare two runs event-by-event (subject ids)
   nexus webhooks <list|add|get|pause|resume|rm|test>     manage event subscriptions (control plane REST)
   nexus secrets <init|set|get|list|rm|grant|revoke>      per-project encrypted secret vault (E1)
+  nexus prompts <list|show|diff|rollback|edit>          named, versioned system prompts (A4)
   nexus events compact [--keep-recent=N] [--store=PATH]  trim event store to the most recent N events (default 1000);
                                                           rewrites JSONL + sqlite index atomically. Optional --store
                                                           overrides the default event store path.
@@ -365,6 +367,11 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     } finally { await store.close(); }
   }
 
+  if (args.cmd === 'prompts') {
+    const sub = args.task.split(/\s+/).filter(Boolean);
+    return runPrompts(sub, process.env, stdout, stderr, { flags: args.flags });
+  }
+
   if (args.cmd === 'secrets') {
     // nexus secrets <sub> [args...] — positional args ride in args.task,
     // flags ride in args.flags (parseArgs splits them out).
@@ -473,13 +480,27 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
 
   if (args.cmd === 'run' || (args.task && args.cmd === 'nexus')) {
     if (!args.task.trim()) { stderr('run: task text required'); return 2; }
-    const ctx = await buildRunCtx({ log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
+    const ctx = await buildRunCtx({ env, log: { info: stdout, warn: stderr, error: stderr, debug: () => {} } });
     const agentId = newAgentId();
     const taskId = newTaskId();
     const maxSteps = readFlags(args.flags, 'max-steps', 'maxSteps') ?? 16;
     const model = readFlags(args.flags, 'model');
+    // A4: --prompt=<name> or --prompt=<name>@<hash> pins the exact instruction
+    // bytes; the resolved hash rides on the task event so a replay can prove
+    // which version ran.
+    const promptRef = readFlags(args.flags, 'prompt');
+    let systemPrompt = 'You are a NEXUS agent. Work strictly inside the current working directory; refuse to access /workspace or absolute paths unless explicitly granted. Be concise.';
+    if (typeof promptRef === 'string' && promptRef) {
+      if (!ctx.prompts) throw new Error('prompts registry unavailable (buildRunCtx did not wire @nexus/prompts)');
+      const [pName, pHash] = promptRef.split('@');
+      const v = ctx.prompts.resolve(pName, pHash ?? null);
+      if (!v) throw new Error(`unknown prompt reference: ${promptRef}`);
+      systemPrompt = v.body;
+      ctx.promptVersion = { name: v.name, hash: v.hash };
+    }
 
-    const started = makeEvent('task.started', { task: args.task, taskId, agentId }, taskId);
+    const started = makeEvent('task.started',
+      { task: args.task, taskId, agentId, ...(ctx.promptVersion ? { prompt: ctx.promptVersion } : {}) }, taskId);
     await ctx.store.append(started);
 
     const loop = new AgentLoop({
@@ -496,7 +517,7 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
         sandbox: null,
         maxSteps,
         env: ctx.env,
-        system: 'You are a NEXUS agent. Work strictly inside the current working directory; refuse to access /workspace or absolute paths unless explicitly granted. Be concise.',
+        system: systemPrompt,
       });
       const ended = makeEvent('task.ended', { taskId, agentId, ok: true, summary: result?.answer?.slice(0, 500) }, taskId);
       await ctx.store.append(ended);
