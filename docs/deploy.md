@@ -109,3 +109,20 @@ nexus healthz || exit 1
 
 For a container probe, wrap it in an ENTRYPOINT script or call the JSON
 endpoint directly — `GET <base>/models` is the underlying check.
+
+If you run the dashboard (`nexus replay --port`), the replay server exposes
+Kubernetes-style probes:
+
+- `GET /live` → always 200 while the process answers. Use as **livenessProbe**.
+- `GET /ready` → 200 only when the event store is open and readable, 503
+  otherwise. Use as **readinessProbe** so traffic is only routed to a node
+  that can actually serve events.
+
+```yaml
+livenessProbe:
+  httpGet: { path: /live, port: 9090 }
+  periodSeconds: 30
+readinessProbe:
+  httpGet: { path: /ready, port: 9090 }
+  periodSeconds: 10
+```

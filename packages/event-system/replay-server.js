@@ -61,6 +61,18 @@ export async function handle(req, res, { store, publicDir, closeHooks = new Set(
   if (path === '/api/healthz') {
     return json(res, 200, { ok: true, count: store.count(), since: q.since ?? null });
   }
+  // Kubernetes-style split: liveness proves the process answers; readiness
+  // proves it can serve real requests (store open + configured). Orchestrators
+  // should only route traffic when /ready is 200.
+  if (path === '/live') return json(res, 200, { ok: true });
+  if (path === '/ready') {
+    try {
+      const count = store.count();
+      return json(res, 200, { ok: true, count, ready: true });
+    } catch (e) {
+      return json(res, 503, { ok: false, ready: false, error: String(e.message || e) });
+    }
+  }
   if (path === '/api/ping') return json(res, 200, { pong: true });
 
   if (path === '/api/events' || path === '/api/events/') {

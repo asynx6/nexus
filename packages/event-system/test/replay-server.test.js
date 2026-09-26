@@ -58,6 +58,15 @@ test('replay-server: healthz + static + one-shot JSON + raw', async () => {
     assert.strictEqual(h.body.ok, true);
     assert.strictEqual(h.body.count, 5);
 
+    // kubernetes-style probes: /live always 200, /ready 200 when the store answers
+    const live = await getJson(srv, '/live');
+    assert.strictEqual(live.status, 200);
+    assert.strictEqual(live.body.ok, true);
+    const ready = await getJson(srv, '/ready');
+    assert.strictEqual(ready.status, 200);
+    assert.strictEqual(ready.body.ready, true);
+    assert.strictEqual(ready.body.count, 5);
+
     // one-shot JSON
     const j = await getJson(srv, '/api/events');
     assert.strictEqual(j.status, 200);
