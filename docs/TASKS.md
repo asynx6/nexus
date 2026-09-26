@@ -47,3 +47,20 @@ Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
 - Review: gw merge setelah test gw verify sendiri di box gw (non-sandbox parts) ATAU bukti test Leo masuk di PR
 - Bug ketemu di bagian orang: report + reproduksi, jangan diam-diam rewrite
 - Definition of Done = §21 plan: bukan "jalan sekali"
+
+---
+
+## WAVE 3 — v0.3.0 finalization (2026-09-25+, crew: Vinz + Leonars only)
+
+| Task | Owner | Status |
+|---|---|---|
+| B3 replay diff between two runs | Leonars | ✅ feat/B3-replay-diff — `nexus replay diff <left> <right>` + /api/diff + /api/subjects + browser diff view |
+| D2 webhook receiver | Leonars | ⏭️ next |
+| E1 per-project encrypted secrets | Leonars | ⏭️ queued |
+| A3 tool auto-discovery | Leonars | ⏭️ queued |
+| A4 prompt versioning | Leonars | ⏭️ queued |
+| A1 multi-agent supervisor | Leonars | ⏭️ last, before feature freeze |
+
+Finalization rule (Bos, 2026-09-25): clear the smaller tasks first; A1 is the
+last item before the final release tag. Self-merge is allowed per standing
+rule. Leo and Kevin are permanently off the team — do not assign them.

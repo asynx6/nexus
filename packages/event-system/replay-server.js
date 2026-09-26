@@ -9,6 +9,9 @@
 //   GET  /api/events/raw           -> newline-delimited JSON of all stored events
 //   GET  /api/healthz              -> { ok: true, count, since }
 //   GET  /api/ping                 -> pong
+//   GET  /api/subjects             -> [{ subject, count, last }] distinct runs (diff picker)
+//   GET  /api/diff?left=&right=&limit=N
+//       -> { left, right, summary, ops } run-to-run diff (TASK-LEONARS-B3)
 //
 // Construction:
 //   const { createReplayServer } = require('./replay-server.js');
@@ -21,9 +24,22 @@
 import { createServer } from 'node:http';
 import { statSync, createReadStream, existsSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
+import { diffRuns, summarize } from './src/diff.js';
 
 const STATIC_EXTS = new Set(['.html', '.js', '.css', '.svg', '.png', '.ico', '.json', '.txt', '.map']);
 const MAX_BODY = 1 << 20; // 1 MiB cap on request lines; we never accept bodies anyway
+
+const DEFAULT_DIFF_LIMIT = 20000;
+
+/** Read up to `limit` events of one subject (subject-filtered, seq order). */
+function readRun(store, subject, limit) {
+  const out = [];
+  for (const env of store.replay({ subject, limit })) {
+    out.push(env);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 function send(res, status, headers, body) {
   res.writeHead(status, headers);
@@ -57,6 +73,19 @@ export async function handle(req, res, { store, publicDir, closeHooks = new Set(
   }
   const path = (req.url || '/').split('?')[0] || '/';
   const q = parseSearch(req.url || '/');
+
+  if (path === '/api/subjects') {
+    // distinct subject ids for the diff picker (TASK-LEONARS-B3)
+    const seen = new Map();
+    for await (const env of store.replay({ limit: DEFAULT_DIFF_LIMIT })) {
+      if (env.subject == null) continue;
+      if (!seen.has(env.subject)) seen.set(env.subject, { subject: env.subject, count: 0, last: env.seq ?? 0 });
+      const rec = seen.get(env.subject);
+      rec.count += 1;
+      rec.last = Math.max(rec.last, env.seq ?? 0);
+    }
+    return json(res, 200, [...seen.values()].sort((x, y) => y.last - x.last));
+  }
 
   if (path === '/api/healthz') {
     return json(res, 200, { ok: true, count: store.count(), since: q.since ?? null });
@@ -132,6 +161,24 @@ export async function handle(req, res, { store, publicDir, closeHooks = new Set(
     const out = [];
     for await (const env of store.replay(filter)) out.push(env);
     return json(res, 200, out);
+  }
+
+  // TASK-LEONARS-B3: replay diff endpoint, aligned in the browser UI.
+  // GET /api/diff?left=SUBJ&right=SUBJ&limit=N -> { left, right, summary, ops }
+  if (path === '/api/diff' || path === '/api/diff/') {
+    const left = q.left, right = q.right;
+    if (!left || !right) return json(res, 400, { error: 'left and right subjects required' });
+    const parsedLimit = q.limit === undefined ? DEFAULT_DIFF_LIMIT : Number(q.limit);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_DIFF_LIMIT;
+    try {
+      const a = readRun(store, left, limit), b = readRun(store, right, limit);
+      if (a.length === 0) return json(res, 404, { error: `no events for subject ${left}` });
+      if (b.length === 0) return json(res, 404, { error: `no events for subject ${right}` });
+      const ops = diffRuns(a, b);
+      return json(res, 200, { left, right, summary: summarize(ops), ops });
+    } catch (e) {
+      return json(res, 500, { error: e?.message ?? String(e) });
+    }
   }
 
   if (path === '/api/events/raw' || path === '/api/events/raw/') {

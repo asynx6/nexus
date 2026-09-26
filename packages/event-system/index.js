@@ -6,6 +6,7 @@ export { EVENTS, EVENT_SCHEMA_VERSION, makeEvent, isEnvelope } from './src/event
 export { EventBus } from './src/bus.js';
 export { EventStore } from './src/store.js';
 export { compact, snapshot } from './src/snapshot.js';
+export { diffRuns, diffPayload, keyFor, summarize } from './src/diff.js';
 
 // Optional DB adapters (D3): SQLite default, PG/MySQL/Mongo via NEXUS_DB_URL.
 // Driver modules are loaded lazily — installing optional deps is opt-in.
