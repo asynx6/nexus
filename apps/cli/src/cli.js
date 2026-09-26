@@ -17,6 +17,7 @@ import { createReplayServer } from '@nexus/event-system/replay-server.js';
 import { runReplayDiff } from './replaydiff.js';
 import { runWebhooks, WEBHOOKS_HELP } from './webhooks.js';
 import { runSecrets, SECRETS_HELP } from './secrets.js';
+import { runAsk } from './ask.js';
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +40,7 @@ Usage:
   nexus setup                                             interactive gateway config wizard (base URL, API key, model) — writes .env-gateway
   nexus plugins [--dir=PATH]                              list discovered tool plugins in .nexus/plugins
   nexus telemetry [on|off]                               opt-in usage metrics — OFF by default, counts and timings only
+  nexus ask "<question>" [--model=NAME] [--raw]            one-shot model Q&A, no sandbox or store
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
@@ -205,6 +207,10 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     }
     stdout(`telemetry: ${isTelemetryEnabled() ? 'enabled' : 'disabled'} (env NEXUS_TELEMETRY, flag .nexus/telemetry.json)`);
     return 0;
+  }
+
+  if (args.cmd === 'ask') {
+    return runAsk([args.task, ...Object.entries(args.flags).filter(([_, v]) => v === true).map(([k]) => `--${k}`)], env, stdout, stderr);
   }
 
   if (args.cmd === 'prompt') {
