@@ -56,8 +56,8 @@ Format: `[Pxx] task — owner | butuh: | definisi selesai (test!)`
 |---|---|---|
 | B3 replay diff between two runs | Leonars | ✅ feat/B3-replay-diff — `nexus replay diff <left> <right>` + /api/diff + /api/subjects + browser diff view |
 | D2 webhook receiver | Leonars | ✅ feat/D2-webhooks — registry + delivery engine + `nexus webhooks` CLI + REST CRUD |
-| E1 per-project encrypted secrets | Leonars | ⏭️ next |
-| A3 tool auto-discovery | Leonars | ⏭️ queued |
+| E1 per-project encrypted secrets | Leonars | 🔨 feat/E1-project-secrets — Vault (scrypt+aes-256-gcm) + ProjectSecrets RBAC + `nexus secrets` CLI |
+| A3 tool auto-discovery | Leonars | ✅ 409708e — *.tools.js + @nexus/tool-* auto-load (ctx.js) |
 | A4 prompt versioning | Leonars | ⏭️ queued |
 | A1 multi-agent supervisor | Leonars | ⏭️ last, before feature freeze |
 
