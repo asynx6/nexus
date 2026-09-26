@@ -4,6 +4,7 @@
 import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
 import { loadEnv } from '@nexus/shared';
 import { loadPlugins } from '@nexus/plugin-registry';
+import { isTelemetryEnabled, setTelemetryEnabled } from '@nexus/telemetry';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
@@ -29,6 +30,7 @@ Usage:
   nexus healthz                                          check gateway reachability
   nexus setup                                             interactive gateway config wizard (base URL, API key, model) — writes .env-gateway
   nexus plugins [--dir=PATH]                              list discovered tool plugins in .nexus/plugins
+  nexus telemetry [on|off]                               opt-in usage metrics — OFF by default, counts and timings only
   nexus doctor [--fix]                                     full environment health check (Node, env, gateway, sqlite, docker). --fix auto-repairs common setup issues
   nexus init <name> [--yes]                              scaffold a new NEXUS project skeleton
   nexus audit verify [--file=PATH]                     verify SHA-256 hash chain of an audit log (default ./audit.jsonl)
@@ -179,6 +181,22 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     }
     for (const e of errors) stderr(`  plugin error: ${e.path}: ${e.error}`);
     return errors.length ? 1 : 0;
+  }
+
+  if (args.cmd === 'telemetry') {
+    const on = args.positional?.[0] ?? args.task;
+    if (on === 'on') {
+      setTelemetryEnabled(true);
+      stdout('telemetry: enabled — counters and timings recorded locally. Set NEXUS_TELEMETRY=0 to force off.');
+      return 0;
+    }
+    if (on === 'off') {
+      setTelemetryEnabled(false);
+      stdout('telemetry: disabled');
+      return 0;
+    }
+    stdout(`telemetry: ${isTelemetryEnabled() ? 'enabled' : 'disabled'} (env NEXUS_TELEMETRY, flag .nexus/telemetry.json)`);
+    return 0;
   }
 
   if (args.cmd === 'init') {
