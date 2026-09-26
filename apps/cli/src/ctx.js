@@ -5,7 +5,7 @@
 import { loadEnv, makeLogger } from '@nexus/shared';
 import { EventBus, EventStore, makeEvent } from '@nexus/event-system';
 import { ModelProvider } from '@nexus/model-providers';
-import { ToolRegistry, ToolExecutor, fsTools, terminalTools } from '@nexus/tool-system';
+import { ToolRegistry, ToolExecutor, fsTools, terminalTools, autoDiscoverTools } from '@nexus/tool-system';
 import { PermissionManager, AuditTrail } from '@nexus/security';
 import { AgentLoop, loopTools } from '@nexus/agent-runtime';
 import { loadPlugins } from '@nexus/plugin-registry';
@@ -54,6 +54,11 @@ export async function buildRunCtx(opts = {}) {
     pluginErrors.push(...errors);
     if (errors.length && log) log.warn(`plugins: ${errors.length} failed to load`);
   }
+  // A3 auto-discovery: *.tools.js under .nexus/tools + @nexus/tool-* deps.
+  // Runs after plugins, so an explicit project tool always wins a name clash.
+  const auto = await autoDiscoverTools(registry, { cwd: process.cwd() });
+  pluginErrors.push(...auto.errors.map((e) => ({ path: e.source, error: e.error })));
+  if (auto.errors.length && log) log.warn(`tool discovery: ${auto.errors.length} source(s) failed`);
   const allowedPaths = ['/workspace', process.cwd()];
   const allowedPathPatterns = allowedPaths.flatMap((p) => [p, `${p}/**`]);
   const permissions = new PermissionManager();

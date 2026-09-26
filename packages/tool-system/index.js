@@ -7,3 +7,5 @@ export { validateArgs } from './src/schema.js';
 export { fsTools } from './src/tools/fs.js';
 export { terminalTools } from './src/tools/terminal.js';
 export { imageTools } from './src/tools/image.js';
+
+export { autoDiscoverTools, discoverToolFiles, discoverToolPackages } from './src/auto-discover.js';
