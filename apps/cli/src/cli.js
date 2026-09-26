@@ -5,6 +5,7 @@ import { buildRunCtx, buildReplayCtx, AgentLoop } from './ctx.js';
 import { loadEnv } from '@nexus/shared';
 import { loadPlugins } from '@nexus/plugin-registry';
 import { isTelemetryEnabled, setTelemetryEnabled } from '@nexus/telemetry';
+import { PromptRegistry } from '@nexus/prompt-versioning';
 import { runDoctor, runDoctorFix } from './doctor.js';
 import { runSetup } from './setup.js';
 import { runAudit } from './audit.js';
@@ -15,6 +16,7 @@ import { newAgentId, newTaskId } from '@nexus/shared';
 import { createReplayServer } from '@nexus/event-system/replay-server.js';
 import { runReplayDiff } from './replaydiff.js';
 import { runWebhooks, WEBHOOKS_HELP } from './webhooks.js';
+import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -201,6 +203,43 @@ export async function runNexusCli(argv, env = process.env, stdout = console.log,
     }
     stdout(`telemetry: ${isTelemetryEnabled() ? 'enabled' : 'disabled'} (env NEXUS_TELEMETRY, flag .nexus/telemetry.json)`);
     return 0;
+  }
+
+  if (args.cmd === 'prompt') {
+    const sub = args.positional?.[0] ?? args.task;
+    const reg = new PromptRegistry();
+    const name = args.flags.name ?? args.positional?.[1];
+    if (sub === 'publish') {
+      if (!name) { stderr('prompt publish: --name=<prompt> required'); return 2; }
+      const version = args.flags.version;
+      if (!version) { stderr('prompt publish: --version=<v> required'); return 2; }
+      const file = args.flags.file;
+      let content;
+      try { content = file ? readFileSync(resolve(file), 'utf8') : (args.flags.content ?? ''); }
+      catch (e) { stderr(`prompt publish: cannot read ${file}: ${e.message}`); return 2; }
+      if (!content) { stderr('prompt publish: content required (--file=PATH or --content=TEXT)'); return 2; }
+      try {
+        const out = reg.publish(name, version, content, { bus: null });
+        stdout(`published ${out.name}@${out.version} sha256=${out.sha256.slice(0, 16)}…`);
+        return 0;
+      } catch (e) { stderr(`prompt publish: ${e.message}`); return 2; }
+    }
+    if (sub === 'show') {
+      if (!name) { stderr('prompt show: --name=<prompt> required'); return 2; }
+      const got = reg.resolve(name, args.flags.version ?? args.flags.ref ?? 'latest');
+      if (!got) { stderr(`prompt show: ${name}@${args.flags.version ?? 'latest'} not found`); return 1; }
+      stdout(`# ${got.name}@${got.version}  sha256=${got.sha256.slice(0, 16)}…\n\n${got.content}`);
+      return 0;
+    }
+    if (sub === 'list') {
+      if (!name) { stderr('prompt list: --name=<prompt> required'); return 2; }
+      const all = reg.versions(name);
+      if (!all.length) { stderr(`prompt list: ${name} not found`); return 1; }
+      for (const m of all) stdout(`  ${m.version}  ${m.sha256.slice(0, 16)}…  ${m.ts}`);
+      return 0;
+    }
+    stderr('prompt: unknown subcommand (publish | show | list)');
+    return 2;
   }
 
   if (args.cmd === 'init') {
